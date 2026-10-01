@@ -1,68 +1,112 @@
-import Image from "next/image";
+import ReportButton from "./components/reportButton";
+import ReportingProgress, { type Step } from "./components/reportingProgress";
+import Sidebar from "./components/sidebar";
+import Link from "next/link";
+
+// Placeholder data until real data is wired in
+const steps: Step[] = [
+  { title: "Plan approved", detail: "Done 12.5.2026", status: "done" },
+  { title: "Agreement signed", detail: "Done 28.5.2026", status: "done" },
+  { title: "Internship in progress", detail: "Current step", status: "current" },
+  { title: "Final report", detail: "Due 15.12.2026", status: "upcoming" },
+  { title: "Teacher assessment", detail: "After report", status: "upcoming" },
+];
+
+const hoursLogged = 640;
+const hoursTotal = 800;
+
+const contacts = [
+  { name: "Laura Nieminen", role: "Workplace supervisor" },
+  { name: "Mikko Laine", role: "Supervising teacher" },
+];
+
+const activity = [
+  { text: "Teacher approved your internship agreement", date: "28.5.2026" },
+  { text: 'You uploaded "Harjoittelusopimus.pdf"', date: "24.5.2026" },
+];
 
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <div className="app-shell">
+      <Sidebar role="student" userName="Aino Korhonen" />
+
+      <main className="main flex flex-col gap-6">
+        <header className="flex items-start justify-between gap-4">
+          <div>
+            <h1>My internship</h1>
+            <p className="meta mt-2 text-base">
+              Practical training · Frontend developer at Nordic Pixel Oy ·
+              1.6.–30.11.2026
+            </p>
+          </div>
+          <ReportButton />
+        </header>
+
+        <ReportingProgress steps={steps} />
+
+        <div className="grid gap-6 md:grid-cols-3">
+          <section className="card">
+            <p className="label">Next step</p>
+            <h2 className="mt-2">Submit your final report</h2>
+            <p className="meta mt-2 text-base">
+              Include your tasks, what you learned and the supervisor&apos;s
+              work certificate.
+            </p>
+            <Link href="/reporting" className="link mt-4 inline-block">
+              Start report →
+            </Link>
+          </section>
+
+          <section className="card">
+            <p className="label">Hours logged</p>
+            <p className="mt-2">
+              <span className="tabular text-4xl">{hoursLogged}</span>{" "}
+              <span className="meta tabular text-base">/ {hoursTotal} h</span>
+            </p>
+            <div
+              className="progress-track mt-3"
+              role="progressbar"
+              aria-valuenow={hoursLogged}
+              aria-valuemax={hoursTotal}
+              aria-label="Hours logged"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+              <div
+                className="progress-bar"
+                style={{ width: `${(hoursLogged / hoursTotal) * 100}%` }}
+              />
+            </div>
+            <p className="meta mt-3 text-base">
+              {hoursTotal - hoursLogged} h remaining
+            </p>
+          </section>
+
+          <section className="card">
+            <p className="label">Contacts</p>
+            <ul className="mt-2 flex flex-col gap-3">
+              {contacts.map(({ name, role }) => (
+                <li key={name}>
+                  <p className="font-semibold">{name}</p>
+                  <p className="meta text-base">{role}</p>
+                </li>
+              ))}
+            </ul>
+          </section>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+
+        <section className="card">
+          <h2>Recent activity</h2>
+          <ul className="mt-3">
+            {activity.map(({ text, date }) => (
+              <li
+                key={text}
+                className="flex justify-between gap-4 border-t border-border py-3 first:border-t-0"
+              >
+                <span>{text}</span>
+                <span className="meta shrink-0">{date}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
       </main>
     </div>
   );
