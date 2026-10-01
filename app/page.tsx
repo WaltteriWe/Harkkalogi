@@ -4,15 +4,7 @@ import Sidebar from "./components/sidebar";
 import Link from "next/link";
 
 // Placeholder data until real data is wired in
-const steps: Step[] = [
-  { title: "Plan approved", detail: "Done 12.5.2026", status: "done" },
-  { title: "Agreement signed", detail: "Done 28.5.2026", status: "done" },
-  { title: "Internship in progress", detail: "Current step", status: "current" },
-  { title: "Final report", detail: "Due 15.12.2026", status: "upcoming" },
-  { title: "Teacher assessment", detail: "After report", status: "upcoming" },
-];
-
-const hoursLogged = 640;
+const hoursLogged = 0;
 const hoursTotal = 800;
 
 const contacts = [
