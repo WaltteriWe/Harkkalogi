@@ -1,16 +1,16 @@
-export type Step = {
-  title: string;
-  detail: string;
-  status: "done" | "current" | "upcoming";
-};
+"use client";
 
-const barColor: Record<Step["status"], string> = {
+import { type StepStatus, useInternshipSteps } from "../hooks/steps";
+
+const barColor: Record<StepStatus, string> = {
   done: "bg-success",
   current: "bg-brand",
   upcoming: "bg-progress-track",
 };
 
-export default function ReportingProgress({ steps }: { steps: Step[] }) {
+export default function ReportingProgress() {
+  const { steps } = useInternshipSteps();
+
   return (
     <section className="card">
       <h2>Progress</h2>

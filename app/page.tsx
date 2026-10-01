@@ -1,18 +1,10 @@
 import ReportButton from "./components/reportButton";
-import ReportingProgress, { type Step } from "./components/reportingProgress";
+import ReportingProgress from "./components/reportingProgress";
 import Sidebar from "./components/sidebar";
 import Link from "next/link";
 
 // Placeholder data until real data is wired in
-const steps: Step[] = [
-  { title: "Plan approved", detail: "Done 12.5.2026", status: "done" },
-  { title: "Agreement signed", detail: "Done 28.5.2026", status: "done" },
-  { title: "Internship in progress", detail: "Current step", status: "current" },
-  { title: "Final report", detail: "Due 15.12.2026", status: "upcoming" },
-  { title: "Teacher assessment", detail: "After report", status: "upcoming" },
-];
-
-const hoursLogged = 640;
+const hoursLogged = 0;
 const hoursTotal = 800;
 
 const contacts = [
@@ -42,7 +34,7 @@ export default function Home() {
           <ReportButton />
         </header>
 
-        <ReportingProgress steps={steps} />
+        <ReportingProgress />
 
         <div className="grid gap-6 md:grid-cols-3">
           <section className="card">
