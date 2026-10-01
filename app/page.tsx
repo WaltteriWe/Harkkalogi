@@ -1,5 +1,5 @@
 import ReportButton from "./components/reportButton";
-import ReportingProgress, { type Step } from "./components/reportingProgress";
+import ReportingProgress from "./components/reportingProgress";
 import Sidebar from "./components/sidebar";
 import Link from "next/link";
 
@@ -34,7 +34,7 @@ export default function Home() {
           <ReportButton />
         </header>
 
-        <ReportingProgress steps={steps} />
+        <ReportingProgress />
 
         <div className="grid gap-6 md:grid-cols-3">
           <section className="card">
