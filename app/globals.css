@@ -1,26 +1,264 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ------------------------------------------------------------------
+   Wihi9 prototype — design tokens
+   Fonts come from next/font in app/layout.tsx:
+   --font-plex-sans (IBM Plex Sans) and --font-plex-mono (IBM Plex Mono)
+   ------------------------------------------------------------------ */
+
+@theme {
+  /* Typography */
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, "SFMono-Regular", monospace;
+
+  /* Surfaces */
+  --color-canvas: #f4f3ef; /* page background */
+  --color-surface: #ffffff; /* cards, inputs, table body */
+  --color-surface-muted: #f8f7f3; /* table header, stat tiles, uploaded file row */
+  --color-sidebar: #1d1d1a;
+  --color-sidebar-raised: #2c2c29; /* user badge at sidebar bottom */
+  --color-border: #e5e2da;
+  --color-border-strong: #d4d0c6;
+
+  /* Text */
+  --color-ink: #1a1a17;
+  --color-ink-muted: #66655f;
+  --color-ink-subtle: #8a8983;
+  --color-ink-inverse: #f4f3ef;
+  --color-ink-inverse-muted: #b9b8b1;
+
+  /* Brand (rust orange) */
+  --color-brand: #b8420f;
+  --color-brand-hover: #9e380c;
+  --color-brand-soft: #fbe8dd;
+  --color-brand-ink: #9a3a0c;
+
+  /* Status */
+  --color-success: #1f6b3c;
+  --color-success-soft: #e2f0e5;
+  --color-info: #1f4fa3;
+  --color-info-soft: #e3eaf7;
+  --color-danger: #9b1c1c;
+  --color-danger-soft: #fbe3e1;
+  --color-progress-track: #e7e5de; /* hours bar track, Student pill */
+
+  /* Shape */
+  --radius-control: 0.5rem; /* buttons, inputs, nav items */
+  --radius-card: 0.75rem; /* cards, tables */
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+/* ------------------------------------------------------------------
+   Base
+   ------------------------------------------------------------------ */
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-canvas text-ink font-sans;
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+
+  h1 {
+    @apply text-3xl font-bold tracking-tight text-ink;
+  }
+
+  h2 {
+    @apply text-lg font-semibold text-ink;
+  }
+
+  h3 {
+    @apply text-base font-semibold text-ink;
+  }
+
+  /* Numbers like 640 / 800 h and table hours use the mono face */
+  .tabular {
+    @apply font-mono;
+    font-variant-numeric: tabular-nums;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--color-brand-soft);
+    color: var(--color-ink);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ------------------------------------------------------------------
+   Components (shared pieces seen across all three roles)
+   ------------------------------------------------------------------ */
+
+@layer components {
+  /* Layout */
+  .app-shell {
+    @apply grid min-h-dvh grid-cols-1 md:grid-cols-[15.5rem_1fr];
+  }
+
+  .sidebar {
+    @apply flex flex-col gap-1 bg-sidebar px-4 py-8 text-ink-inverse;
+  }
+
+  .nav-item {
+    @apply block rounded-control px-3 py-2.5 text-ink-inverse/85 transition-colors hover:bg-white/5 hover:text-ink-inverse;
+  }
+
+  .nav-item[aria-current="page"] {
+    @apply bg-brand font-semibold text-white hover:bg-brand;
+  }
+
+  .user-badge {
+    @apply mt-auto rounded-control bg-sidebar-raised px-3 py-3;
+  }
+
+  .main {
+    @apply px-6 py-10 md:px-12;
+  }
+
+  /* Cards */
+  .card {
+    @apply rounded-card border border-border bg-surface p-6;
+  }
+
+  .label {
+    @apply text-xs font-medium tracking-wider text-ink-muted uppercase;
+  }
+
+  .meta {
+    @apply text-sm text-ink-muted;
+  }
+
+  /* Buttons */
+  .btn,
+  .btn-primary,
+  .btn-secondary,
+  .btn-dashed {
+    @apply inline-flex items-center justify-center gap-2 rounded-control px-5 py-2.5 font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply bg-brand text-white hover:bg-brand-hover;
+  }
+
+  .btn-secondary {
+    @apply border border-border-strong bg-surface text-ink hover:bg-surface-muted;
+  }
+
+  .btn-dashed {
+    @apply border border-dashed border-ink-subtle bg-surface text-ink hover:bg-surface-muted;
+  }
+
+  .link {
+    @apply font-semibold text-brand underline underline-offset-2 hover:text-brand-hover;
+  }
+
+  .link-quiet {
+    @apply font-semibold text-brand hover:underline;
+  }
+
+  /* Forms */
+  .field-label {
+    @apply mb-1.5 block text-sm font-semibold text-ink;
+  }
+
+  .input,
+  .textarea {
+    @apply w-full rounded-control border border-border-strong bg-surface px-3.5 py-2.5 text-ink placeholder:text-ink-subtle focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20;
+  }
+
+  .textarea {
+    @apply min-h-40 resize-y leading-relaxed;
+  }
+
+  .hint {
+    @apply mt-1.5 text-sm text-ink-muted;
+  }
+
+  /* Tables (review queue, users and roles) */
+  .table {
+    @apply w-full overflow-hidden rounded-card border border-border bg-surface text-left;
+  }
+
+  .table thead {
+    @apply bg-surface-muted;
+  }
+
+  .table th {
+    @apply px-5 py-3.5 text-xs font-semibold tracking-wider text-ink-muted uppercase;
+  }
+
+  .table td {
+    @apply border-t border-border px-5 py-4 align-middle;
+  }
+
+  /* Status pills */
+  .pill,
+  .pill-info,
+  .pill-danger,
+  .pill-warning,
+  .pill-success,
+  .pill-neutral {
+    @apply inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap;
+  }
+
+  .pill-info {
+    @apply bg-info-soft text-info;
+  } /* Needs review, Teacher */
+  .pill-danger {
+    @apply bg-danger-soft text-danger;
+  } /* Overdue */
+  .pill-warning {
+    @apply bg-brand-soft text-brand-ink;
+  } /* Changes requested, Admin */
+  .pill-success {
+    @apply bg-success-soft text-success;
+  } /* Approved, Uploaded */
+  .pill-neutral {
+    @apply bg-progress-track text-ink;
+  } /* Student */
+
+  /* Progress (hours bar + step markers) */
+  .progress-track {
+    @apply h-1.5 w-full overflow-hidden rounded-full bg-progress-track;
+  }
+
+  .progress-bar {
+    @apply h-full rounded-full bg-brand;
+  }
+
+  /* Progress steps on the student overview: check = done, X = not done */
+  .step-icon,
+  .step-icon-done,
+  .step-icon-todo {
+    @apply inline-flex size-6 shrink-0 items-center justify-center rounded-full;
+  }
+
+  .step-icon-done {
+    @apply bg-success text-white;
+  }
+
+  .step-icon-todo {
+    @apply border border-border-strong text-ink-subtle;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Motion
+   ------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
