@@ -36,7 +36,7 @@ export default function Sidebar({ role, userName }: SidebarProps) {
   return (
     <aside className="sidebar">
       <div className="mb-6 px-3">
-        <p className="text-xl font-bold">Wihi9</p>
+        <p className="text-xl font-bold">Harkkalogi</p>
         <p className="text-sm text-ink-inverse-muted">Internship reporting</p>
       </div>
 

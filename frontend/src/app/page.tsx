@@ -1,6 +1,6 @@
-import ReportButton from "./components/reportButton";
-import ReportingProgress from "./components/reportingProgress";
-import Sidebar from "./components/sidebar";
+import ReportButton from "../components/reportButton";
+import ReportingProgress from "../components/reportingProgress";
+import Sidebar from "../components/sidebar";
 import Link from "next/link";
 
 // Placeholder data until real data is wired in

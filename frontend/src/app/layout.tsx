@@ -15,7 +15,7 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Wihi9 · Internship reporting",
+  title: "Harkkalogi · Internship reporting",
   description: "Internship reporting for students, teachers and admins",
 };
 
