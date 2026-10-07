@@ -1,0 +1,103 @@
+// Prisma schema for the internship reporting prototype (PostgreSQL).
+// Keep the generator block that `npx prisma init` created if it differs from this one.
+// The connection URL lives in prisma.config.ts / .env, not here.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+enum InternshipStatus {
+  ONGOING
+  COMPLETED
+}
+
+enum ReportStatus {
+  DRAFT
+  SUBMITTED
+  REVIEWED
+}
+
+enum ReviewDecision {
+  APPROVED
+  NEEDS_CHANGES
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String
+  role      Role
+  createdAt DateTime @default(now())
+
+  // Student side
+  internships Internship[] @relation("StudentInternships")
+
+  // Teacher side
+  supervised Internship[] @relation("TeacherInternships")
+  reviews    Review[]
+}
+
+model Internship {
+  id          Int              @id @default(autoincrement())
+  company     String
+  description String?
+  startDate   DateTime
+  endDate     DateTime?
+  status      InternshipStatus @default(ONGOING)
+
+  studentId Int
+  student   User @relation("StudentInternships", fields: [studentId], references: [id])
+
+  teacherId Int?
+  teacher   User? @relation("TeacherInternships", fields: [teacherId], references: [id])
+
+  reports Report[]
+
+  @@index([studentId])
+  @@index([teacherId])
+}
+
+model Report {
+  id          Int          @id @default(autoincrement())
+  title       String
+  content     String
+  status      ReportStatus @default(DRAFT)
+  submittedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  internshipId Int
+  internship   Internship @relation(fields: [internshipId], references: [id], onDelete: Cascade)
+
+  reviews Review[]
+
+  @@index([internshipId])
+  @@index([status])
+}
+
+model Review {
+  id        Int            @id @default(autoincrement())
+  comment   String
+  decision  ReviewDecision
+  createdAt DateTime       @default(now())
+
+  reportId Int
+  report   Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  teacherId Int
+  teacher   User @relation(fields: [teacherId], references: [id])
+
+  @@index([reportId])
+  @@index([teacherId])
+}
