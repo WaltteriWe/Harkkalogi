@@ -99,11 +99,11 @@
 @layer components {
   /* Layout */
   .app-shell {
-    @apply grid min-h-dvh grid-cols-1 md:grid-cols-[15.5rem_1fr];
+    @apply grid min-h-dvh md:h-dvh md:max-h-dvh md:overflow-hidden grid-cols-1 md:grid-cols-[15.5rem_1fr];
   }
 
   .sidebar {
-    @apply flex flex-col gap-1 bg-sidebar px-4 py-8 text-ink-inverse;
+    @apply flex flex-col gap-1 bg-sidebar px-4 py-8 text-ink-inverse md:h-full md:overflow-y-auto;
   }
 
   .nav-item {
@@ -115,11 +115,11 @@
   }
 
   .user-badge {
-    @apply mt-auto rounded-control bg-sidebar-raised px-3 py-3;
+    @apply mt-6 md:mt-auto rounded-control bg-sidebar-raised px-3 py-3 shrink-0;
   }
 
   .main {
-    @apply px-6 py-10 md:px-12;
+    @apply min-w-0 px-6 py-10 md:px-12 md:h-full md:overflow-y-auto;
   }
 
   /* Cards */

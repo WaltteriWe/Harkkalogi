@@ -35,12 +35,12 @@ export default function Sidebar({ role, userName }: SidebarProps) {
 
   return (
     <aside className="sidebar">
-      <div className="mb-6 px-3">
+      <div className="mb-6 px-3 shrink-0">
         <p className="text-xl font-bold">Harkkalogi</p>
         <p className="text-sm text-ink-inverse-muted">Internship reporting</p>
       </div>
 
-      <nav aria-label="Main" className="flex flex-col gap-1">
+      <nav aria-label="Main" className="flex flex-col gap-1 shrink-0">
         {navByRole[role].map(({ label, href }) => (
           <Link
             key={href}
