@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import Sidebar from "../../components/sidebar";
 
 export type RoleType = "Supervising teacher" | "Workplace supervisor" | "Coordinator";
@@ -109,6 +109,9 @@ export default function MessagesPage() {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [replyText, setReplyText] = useState<string>("");
   const [replySuccess, setReplySuccess] = useState<boolean>(false);
+  const [showReplyForm, setShowReplyForm] = useState<boolean>(false);
+  const [replyMode, setReplyMode] = useState<"inline" | "overlay">("inline");
+  const messagePaneRef = useRef<HTMLElement>(null);
 
   // Filter messages based on search query
   const filteredMessages = useMemo(() => {
@@ -133,11 +136,46 @@ export default function MessagesPage() {
 
   const handleSelectMessage = (id: string) => {
     setSelectedId(id);
+    setShowReplyForm(false);
+    setReplyText("");
+    setReplyMode("inline");
     // Mark as read
     setMessages((prev) =>
       prev.map((msg) => (msg.id === id ? { ...msg, read: true } : msg))
     );
   };
+
+  const handleOpenReply = () => {
+    if (messagePaneRef.current) {
+      const rect = messagePaneRef.current.getBoundingClientRect();
+      // Distance from bottom of message card to viewport bottom (accounting for 40px padding)
+      const spaceBelow = window.innerHeight - rect.bottom - 40;
+      setReplyMode(spaceBelow < 220 ? "overlay" : "inline");
+    } else {
+      setReplyMode("inline");
+    }
+    setShowReplyForm(true);
+  };
+
+  // Dynamically update reply mode on viewport resize when form is open
+  useEffect(() => {
+    if (!showReplyForm) return;
+
+    const handleResize = () => {
+      if (messagePaneRef.current) {
+        const rect = messagePaneRef.current.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom - 40;
+        if (replyMode === "inline" && spaceBelow < 220) {
+          setReplyMode("overlay");
+        } else if (replyMode === "overlay" && spaceBelow >= 220) {
+          setReplyMode("inline");
+        }
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [showReplyForm, replyMode]);
 
   const handleSendReply = (e: React.FormEvent) => {
     e.preventDefault();
@@ -160,6 +198,7 @@ export default function MessagesPage() {
     );
 
     setReplyText("");
+    setShowReplyForm(false);
     setReplySuccess(true);
     setTimeout(() => setReplySuccess(false), 3000);
   };
@@ -224,8 +263,8 @@ export default function MessagesPage() {
         {/* 2-Column Split: Vertical Messages List (Left) and Message Detail (Right) */}
         <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[24rem_1fr]">
           {/* Vertical Messages List */}
-          <section className="card flex flex-col gap-3 p-4 sm:p-5">
-            <div className="flex items-center justify-between pb-2 border-b border-border">
+          <section className="card flex flex-col p-4 sm:p-5 max-h-[50dvh] lg:max-h-[calc(100dvh-11rem)] overflow-hidden">
+            <div className="flex items-center justify-between pb-2 border-b border-border shrink-0 mb-3">
               <h2 className="text-base font-semibold text-ink">
                 Inbox
               </h2>
@@ -249,7 +288,7 @@ export default function MessagesPage() {
                 </button>
               </div>
             ) : (
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2 overflow-y-auto min-h-0 pr-1">
                 {filteredMessages.map((msg) => {
                   const isSelected = selectedMessage?.id === msg.id;
 
@@ -308,131 +347,246 @@ export default function MessagesPage() {
           </section>
 
           {/* Message Detail & Reading Pane (Right) */}
-          <section className="card flex flex-col gap-6">
+          <section
+            ref={messagePaneRef}
+            className="card relative flex flex-col p-0 overflow-hidden max-h-[50dvh] lg:max-h-[calc(100dvh-11rem)]"
+          >
             {selectedMessage ? (
               <>
-                {/* Header of the Selected Message */}
-                <div className="flex flex-col gap-4 border-b border-border pb-5">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      {/* Subject of selected message */}
-                      <h2 className="text-xl font-bold tracking-tight text-ink">
-                        {selectedMessage.subject}
-                      </h2>
-                      <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-                        <span className="font-semibold text-ink">
-                          {selectedMessage.sender}
-                        </span>
-                        <span className="meta">({selectedMessage.senderEmail})</span>
-                        <span className="text-ink-subtle">·</span>
-                        {getRolePill(selectedMessage.senderRole)}
+                <div
+                  className="flex flex-col gap-6 p-6 overflow-y-auto min-h-0 flex-1"
+                  style={{
+                    paddingBottom:
+                      showReplyForm && replyMode === "overlay" ? "16rem" : undefined,
+                  }}
+                >
+                  {/* Header of the Selected Message */}
+                  <div className="flex flex-col gap-4 border-b border-border pb-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        {/* Subject of selected message */}
+                        <h2 className="text-xl font-bold tracking-tight text-ink">
+                          {selectedMessage.subject}
+                        </h2>
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+                          <span className="font-semibold text-ink">
+                            {selectedMessage.sender}
+                          </span>
+                          <span className="meta">({selectedMessage.senderEmail})</span>
+                          <span className="text-ink-subtle">·</span>
+                          {getRolePill(selectedMessage.senderRole)}
+                        </div>
                       </div>
+                      <span className="meta tabular text-xs shrink-0 mt-1">
+                        {selectedMessage.date}
+                      </span>
                     </div>
-                    <span className="meta tabular text-xs shrink-0 mt-1">
-                      {selectedMessage.date}
-                    </span>
                   </div>
-                </div>
 
-                {/* Message Body Content */}
-                <div className="space-y-4 text-sm sm:text-base leading-relaxed text-ink whitespace-pre-line">
-                  {selectedMessage.body}
-                </div>
+                  {/* Message Body Content */}
+                  <div className="space-y-4 text-sm sm:text-base leading-relaxed text-ink whitespace-pre-line">
+                    {selectedMessage.body}
+                  </div>
 
-                {/* Attachments Section if present */}
-                {selectedMessage.attachments &&
-                  selectedMessage.attachments.length > 0 && (
-                    <div className="rounded-control border border-border bg-surface-muted p-4">
-                      <p className="label mb-2">Attachments</p>
-                      <div className="flex flex-wrap gap-2">
-                        {selectedMessage.attachments.map((att) => (
-                          <div
-                            key={att.name}
-                            className="inline-flex items-center gap-2 rounded-control border border-border-strong bg-surface px-3 py-2 text-xs font-medium text-ink"
-                          >
-                            <svg
-                              className="size-4 text-ink-muted shrink-0"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              aria-hidden="true"
+                  {/* Attachments Section if present */}
+                  {selectedMessage.attachments &&
+                    selectedMessage.attachments.length > 0 && (
+                      <div className="rounded-control border border-border bg-surface-muted p-4">
+                        <p className="label mb-2">Attachments</p>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedMessage.attachments.map((att) => (
+                            <div
+                              key={att.name}
+                              className="inline-flex items-center gap-2 rounded-control border border-border-strong bg-surface px-3 py-2 text-xs font-medium text-ink"
                             >
-                              <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
-                            </svg>
-                            <span className="truncate max-w-[200px]">{att.name}</span>
-                            <span className="meta">({att.size})</span>
-                            <span className="pill-success ml-1">Attached</span>
-                          </div>
-                        ))}
+                              <svg
+                                className="size-4 text-ink-muted shrink-0"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                aria-hidden="true"
+                              >
+                                <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
+                              </svg>
+                              <span className="truncate max-w-[200px]">{att.name}</span>
+                              <span className="meta">({att.size})</span>
+                              <span className="pill-success ml-1">Attached</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
+                    )}
+
+                  {/* Thread Replies if any */}
+                  {selectedMessage.replies && selectedMessage.replies.length > 0 && (
+                    <div className="flex flex-col gap-3 border-t border-border pt-4">
+                      <p className="label">Replies in this thread</p>
+                      {selectedMessage.replies.map((reply) => (
+                        <div
+                          key={reply.id}
+                          className="rounded-control border border-brand/20 bg-brand-soft/20 p-4"
+                        >
+                          <div className="flex items-center justify-between text-xs mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-ink">
+                                {reply.sender}
+                              </span>
+                              <span className="pill-neutral">{reply.role}</span>
+                            </div>
+                            <span className="meta tabular">{reply.date}</span>
+                          </div>
+                          <p className="text-sm text-ink leading-relaxed whitespace-pre-line">
+                            {reply.body}
+                          </p>
+                        </div>
+                      ))}
                     </div>
                   )}
 
-                {/* Thread Replies if any */}
-                {selectedMessage.replies && selectedMessage.replies.length > 0 && (
-                  <div className="flex flex-col gap-3 border-t border-border pt-4">
-                    <p className="label">Replies in this thread</p>
-                    {selectedMessage.replies.map((reply) => (
-                      <div
-                        key={reply.id}
-                        className="rounded-control border border-brand/20 bg-brand-soft/20 p-4"
-                      >
-                        <div className="flex items-center justify-between text-xs mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-ink">
-                              {reply.sender}
-                            </span>
-                            <span className="pill-neutral">{reply.role}</span>
-                          </div>
-                          <span className="meta tabular">{reply.date}</span>
-                        </div>
-                        <p className="text-sm text-ink leading-relaxed whitespace-pre-line">
-                          {reply.body}
-                        </p>
+                  {/* Inline Quick Reply Form (when space allows) */}
+                  {showReplyForm && replyMode === "inline" && (
+                    <form
+                      onSubmit={handleSendReply}
+                      className="border-t border-border pt-4 flex flex-col gap-3 mt-auto"
+                    >
+                      <div className="flex items-center justify-between">
+                        <label htmlFor="reply-input-inline" className="field-label mb-0">
+                          Reply to {selectedMessage.sender}
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowReplyForm(false);
+                            setReplyText("");
+                          }}
+                          className="text-xs text-ink-muted hover:text-ink font-medium"
+                        >
+                          Cancel
+                        </button>
                       </div>
-                    ))}
+                      <textarea
+                        id="reply-input-inline"
+                        className="textarea min-h-24"
+                        rows={3}
+                        placeholder="Type your reply here..."
+                        value={replyText}
+                        onChange={(e) => setReplyText(e.target.value)}
+                        autoFocus
+                      />
+
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowReplyForm(false);
+                            setReplyText("");
+                          }}
+                          className="btn-secondary"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={!replyText.trim()}
+                          className="btn-primary"
+                        >
+                          Send reply
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  {/* Reply Trigger Button when reply form is closed */}
+                  {!showReplyForm && (
+                    <div className="border-t border-border pt-4 flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={handleOpenReply}
+                        className="btn-primary flex items-center gap-2"
+                      >
+                        <svg
+                          className="size-4"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <polyline points="9 17 4 12 9 7" />
+                          <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+                        </svg>
+                        <span>Reply</span>
+                      </button>
+
+                      {replySuccess && (
+                        <p className="text-xs font-semibold text-success">
+                          ✓ Reply sent successfully!
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Overlay Quick Reply Form (when space is constrained: opens on top of bottom of message) */}
+                {showReplyForm && replyMode === "overlay" && (
+                  <div className="absolute bottom-0 inset-x-0 rounded-b-card border-t border-border bg-surface/98 backdrop-blur p-4 sm:p-5 shadow-2xl z-10">
+                    <form onSubmit={handleSendReply} className="flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <label htmlFor="reply-input-overlay" className="field-label mb-0">
+                          Reply to {selectedMessage.sender}
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowReplyForm(false);
+                            setReplyText("");
+                          }}
+                          className="text-ink-muted hover:text-ink text-sm p-1 leading-none"
+                          aria-label="Close reply form"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      <textarea
+                        id="reply-input-overlay"
+                        className="textarea min-h-24"
+                        rows={3}
+                        placeholder="Type your reply here..."
+                        value={replyText}
+                        onChange={(e) => setReplyText(e.target.value)}
+                        autoFocus
+                      />
+
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowReplyForm(false);
+                            setReplyText("");
+                          }}
+                          className="btn-secondary"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={!replyText.trim()}
+                          className="btn-primary"
+                        >
+                          Send reply
+                        </button>
+                      </div>
+                    </form>
                   </div>
                 )}
-
-                {/* Quick Reply Form */}
-                <form
-                  onSubmit={handleSendReply}
-                  className="border-t border-border pt-4 flex flex-col gap-3"
-                >
-                  <label htmlFor="reply-input" className="field-label">
-                    Reply to {selectedMessage.sender}
-                  </label>
-                  <textarea
-                    id="reply-input"
-                    className="textarea min-h-24"
-                    rows={3}
-                    placeholder="Type your reply here..."
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                  />
-
-                  {replySuccess && (
-                    <p className="text-xs font-semibold text-success">
-                      ✓ Reply sent successfully!
-                    </p>
-                  )}
-
-                  <div className="flex justify-end">
-                    <button
-                      type="submit"
-                      disabled={!replyText.trim()}
-                      className="btn-primary"
-                    >
-                      Send reply
-                    </button>
-                  </div>
-                </form>
               </>
             ) : (
-              <div className="py-16 text-center">
+              <div className="p-16 text-center">
                 <p className="text-base text-ink-muted">
                   Select a message from the list to view its contents.
                 </p>
