@@ -2,29 +2,14 @@
 
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import Sidebar from "../../components/sidebar";
+import InboxMessageCard, {
+  type RoleType,
+  type MessageItem,
+  type ThreadReply,
+  getRolePill,
+} from "../../components/inboxMessageCard";
 
-export type RoleType = "Supervising teacher" | "Workplace supervisor" | "Coordinator";
-
-export interface ThreadReply {
-  id: string;
-  sender: string;
-  role: string;
-  body: string;
-  date: string;
-}
-
-export interface MessageItem {
-  id: string;
-  subject: string;
-  sender: string;
-  senderRole: RoleType;
-  senderEmail: string;
-  date: string;
-  read: boolean;
-  body: string;
-  attachments?: { name: string; size: string }[];
-  replies?: ThreadReply[];
-}
+export type { RoleType, MessageItem, ThreadReply };
 
 const INITIAL_MESSAGES: MessageItem[] = [
   {
@@ -90,18 +75,6 @@ const INITIAL_MESSAGES: MessageItem[] = [
   },
 ];
 
-function getRolePill(role: RoleType) {
-  switch (role) {
-    case "Supervising teacher":
-      return <span className="pill-info">{role}</span>;
-    case "Workplace supervisor":
-      return <span className="pill-success">{role}</span>;
-    case "Coordinator":
-      return <span className="pill-warning">{role}</span>;
-    default:
-      return <span className="pill-neutral">{role}</span>;
-  }
-}
 
 export default function MessagesPage() {
   const [messages, setMessages] = useState<MessageItem[]>(INITIAL_MESSAGES);
@@ -289,59 +262,14 @@ export default function MessagesPage() {
               </div>
             ) : (
               <div className="flex flex-col gap-2 overflow-y-auto min-h-0 pr-1">
-                {filteredMessages.map((msg) => {
-                  const isSelected = selectedMessage?.id === msg.id;
-
-                  return (
-                    <button
-                      key={msg.id}
-                      type="button"
-                      onClick={() => handleSelectMessage(msg.id)}
-                      className={`group w-full rounded-control p-3.5 text-left transition-all border ${
-                        isSelected
-                          ? "border-brand bg-brand-soft/20 ring-1 ring-brand/30"
-                          : "border-border bg-surface hover:border-border-strong hover:bg-surface-muted/60"
-                      }`}
-                    >
-                      {/* FIRST THING: Subject visible first, with unread indicator & timestamp */}
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          {!msg.read && (
-                            <span
-                              className="size-2 rounded-full bg-brand shrink-0"
-                              title="Unread"
-                              aria-label="Unread message"
-                            />
-                          )}
-                          <p
-                            className={`truncate text-sm font-semibold ${
-                              isSelected ? "text-brand-ink" : "text-ink"
-                            }`}
-                          >
-                            {msg.subject}
-                          </p>
-                        </div>
-                        <span className="meta tabular text-xs shrink-0">
-                          {msg.date}
-                        </span>
-                      </div>
-
-                      {/* SECOND THING: Sender name and Sender's Role Badge */}
-                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
-                        <span className="font-medium text-ink">
-                          {msg.sender}
-                        </span>
-                        <span className="text-ink-subtle">·</span>
-                        {getRolePill(msg.senderRole)}
-                      </div>
-
-                      {/* THIRD THING: Snippet / preview */}
-                      <p className="meta mt-1.5 line-clamp-2 text-xs leading-relaxed text-ink-muted">
-                        {msg.body.replace(/\n+/g, " ")}
-                      </p>
-                    </button>
-                  );
-                })}
+                {filteredMessages.map((msg) => (
+                  <InboxMessageCard
+                    key={msg.id}
+                    message={msg}
+                    isSelected={selectedMessage?.id === msg.id}
+                    onSelect={handleSelectMessage}
+                  />
+                ))}
               </div>
             )}
           </section>
