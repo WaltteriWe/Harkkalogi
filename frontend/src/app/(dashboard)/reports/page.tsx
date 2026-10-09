@@ -3,8 +3,7 @@
 import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import Sidebar from "../../components/sidebar";
-import { useReport, type ReportState } from "../../context/ReportContext";
+import { useReport, type ReportState } from "@/context/ReportContext";
 
 type FilterTab = "all" | "active" | "old";
 
@@ -74,11 +73,8 @@ export default function ReportsPage() {
   };
 
   return (
-    <div className="app-shell">
-      <Sidebar role="student" userName="Aino Korhonen" />
-
-      <main className="main flex flex-col gap-6">
-        {/* Header Section */}
+    <>
+      {/* Header Section */}
         <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1>Reports</h1>
@@ -474,8 +470,7 @@ export default function ReportsPage() {
             </div>
           </div>
         )}
-      </main>
-    </div>
+    </>
   );
 }
 

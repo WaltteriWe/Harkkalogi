@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 
 export type Role = "student" | "teacher" | "admin";
 
@@ -26,12 +27,16 @@ const navByRole: Record<Role, { label: string; href: string }[]> = {
 };
 
 type SidebarProps = {
-  role: Role;
-  userName: string;
+  role?: Role;
+  userName?: string;
 };
 
-export default function Sidebar({ role, userName }: SidebarProps) {
+export default function Sidebar({ role, userName }: SidebarProps = {}) {
   const pathname = usePathname();
+  const { user, logout } = useAuth();
+
+  const activeRole: Role = role ?? user?.role ?? "student";
+  const activeUserName = userName ?? user?.name ?? "Aino Korhonen";
 
   return (
     <aside className="sidebar">
@@ -41,7 +46,7 @@ export default function Sidebar({ role, userName }: SidebarProps) {
       </div>
 
       <nav aria-label="Main" className="flex flex-col gap-1 shrink-0">
-        {navByRole[role].map(({ label, href }) => {
+        {navByRole[activeRole]?.map(({ label, href }) => {
           const isCurrent =
             pathname === href ||
             (href === "/reports" && (pathname === "/report" || pathname.startsWith("/report/")));
@@ -59,11 +64,21 @@ export default function Sidebar({ role, userName }: SidebarProps) {
         })}
       </nav>
 
-      <div className="user-badge">
-        <p className="text-xs tracking-wider text-ink-inverse-muted uppercase">
-          {role}
-        </p>
-        <p className="font-semibold">{userName}</p>
+      <div className="user-badge flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-xs tracking-wider text-ink-inverse-muted uppercase">
+            {activeRole}
+          </p>
+          <p className="font-semibold truncate">{activeUserName}</p>
+        </div>
+        <button
+          type="button"
+          onClick={logout}
+          className="text-xs font-medium text-ink-inverse-muted hover:text-white px-2 py-1 rounded hover:bg-white/10 transition-colors shrink-0"
+          title="Sign out and return to login"
+        >
+          Sign out
+        </button>
       </div>
     </aside>
   );

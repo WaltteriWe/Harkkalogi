@@ -3,8 +3,7 @@
 import React, { useState, useEffect, Suspense, type ChangeEvent } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import Sidebar from "../../components/sidebar";
-import { useReport } from "../../context/ReportContext";
+import { useReport } from "@/context/ReportContext";
 
 function ReportEditor() {
   const searchParams = useSearchParams();
@@ -79,11 +78,8 @@ function ReportEditor() {
   const isSubmitted = report.status === "submitted";
 
   return (
-    <div className="app-shell">
-      <Sidebar role="student" userName="Aino Korhonen" />
-
-      <main className="main flex flex-col gap-6">
-        {/* Header section */}
+    <>
+      {/* Header section */}
         <div>
           <Link href="/reports" className="link-quiet inline-flex items-center gap-1.5 text-sm">
             ← Back to reports
@@ -450,8 +446,7 @@ function ReportEditor() {
             )}
           </aside>
         </div>
-      </main>
-    </div>
+    </>
   );
 }
 
@@ -459,13 +454,8 @@ export default function ReportPage() {
   return (
     <Suspense
       fallback={
-        <div className="app-shell">
-          <Sidebar role="student" userName="Aino Korhonen" />
-          <main className="main flex flex-col gap-6">
-            <div className="p-8 text-center text-ink-muted">
-              Loading report...
-            </div>
-          </main>
+        <div className="p-8 text-center text-ink-muted">
+          Loading report...
         </div>
       }
     >

@@ -1,7 +1,23 @@
 import React from "react";
 
-const teacherView = () => {
-  return <div>teacher view</div>;
-};
+export default function TeacherViewPage() {
+  return (
+    <div className="flex flex-col gap-6">
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1>Review queue</h1>
+          <p className="meta mt-2 text-base">
+            Supervising teacher · Review pending reports and student progress
+          </p>
+        </div>
+      </header>
 
-export default teacherView;
+      <div className="card">
+        <h2 className="text-base font-semibold text-ink">Pending reports</h2>
+        <p className="meta mt-1 text-sm">
+          Review queue implementation in progress. Currently active in Teacher mode.
+        </p>
+      </div>
+    </div>
+  );
+}

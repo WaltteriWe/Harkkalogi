@@ -1,11 +1,10 @@
 "use client";
 
 import React, { useMemo } from "react";
-import ReportButton from "../components/reportButton";
-import ReportingProgress from "../components/reportingProgress";
-import Sidebar from "../components/sidebar";
+import ReportButton from "@/components/reportButton";
+import ReportingProgress from "@/components/reportingProgress";
 import Link from "next/link";
-import { useReport } from "../context/ReportContext";
+import { useReport } from "@/context/ReportContext";
 
 const contacts = [
   { name: "Laura Nieminen", role: "Workplace supervisor" },
@@ -49,11 +48,8 @@ export default function Home() {
   const progressPercent = Math.min(100, Math.round((hoursLogged / hoursTotal) * 100));
 
   return (
-    <div className="app-shell">
-      <Sidebar role="student" userName="Aino Korhonen" />
-
-      <main className="main flex flex-col gap-6">
-        <header className="flex items-start justify-between gap-4">
+    <>
+      <header className="flex items-start justify-between gap-4">
           <div>
             <h1>My internship</h1>
             <p className="meta mt-2 text-base">
@@ -155,7 +151,6 @@ export default function Home() {
             ))}
           </ul>
         </section>
-      </main>
-    </div>
+    </>
   );
 }

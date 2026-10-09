@@ -2,8 +2,10 @@
 
 import React, { useState, type ChangeEvent } from "react";
 import Link from "next/link";
-import Sidebar from "../../components/sidebar";
-import { useReport } from "../../context/ReportContext";
+import { useReport } from "@/context/ReportContext";
+import DocumentTemplateCard, {
+  type DocumentTemplate,
+} from "@/components/documentTemplateCard";
 
 interface DocumentItem {
   id: string;
@@ -36,7 +38,7 @@ const DEFAULT_DOCUMENTS: DocumentItem[] = [
   },
 ];
 
-const TEMPLATES = [
+const TEMPLATES: DocumentTemplate[] = [
   {
     name: "Internship plan template.docx",
     category: "Planning",
@@ -146,11 +148,8 @@ export default function DocumentsPage() {
   ];
 
   return (
-    <div className="app-shell">
-      <Sidebar role="student" userName="Aino Korhonen" />
-
-      <main className="main flex flex-col gap-6">
-        {/* Header Section */}
+    <>
+      {/* Header Section */}
         <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1>Documents</h1>
@@ -306,40 +305,14 @@ export default function DocumentsPage() {
 
           <div className="grid gap-4 sm:grid-cols-3">
             {TEMPLATES.map((tmpl) => (
-              <div
+              <DocumentTemplateCard
                 key={tmpl.name}
-                className="flex flex-col justify-between rounded-control border border-border bg-surface-muted/40 p-4 transition-colors hover:border-border-strong"
-              >
-                <div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="pill-neutral text-[10px] uppercase tracking-wider">
-                      {tmpl.format}
-                    </span>
-                    <span className="meta tabular text-xs">{tmpl.size}</span>
-                  </div>
-
-                  <h3 className="mt-2 text-sm font-semibold text-ink">
-                    {tmpl.name}
-                  </h3>
-                  <p className="meta mt-1 text-xs leading-relaxed">
-                    {tmpl.description}
-                  </p>
-                </div>
-
-                <div className="mt-4 pt-3 border-t border-border">
-                  <button
-                    type="button"
-                    onClick={() => handleDownload(tmpl.name)}
-                    className="btn-secondary w-full py-1.5 text-xs font-semibold"
-                  >
-                    Download template
-                  </button>
-                </div>
-              </div>
+                template={tmpl}
+                onDownload={handleDownload}
+              />
             ))}
           </div>
         </section>
-      </main>
-    </div>
+    </>
   );
 }

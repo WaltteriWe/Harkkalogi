@@ -2,8 +2,13 @@
 
 import React, { type ReactNode } from "react";
 import { ReportProvider } from "../context/ReportContext";
+import { AuthProvider } from "../context/AuthContext";
 
 export default function Providers({ children }: { children: ReactNode }) {
-  return <ReportProvider>{children}</ReportProvider>;
+  return (
+    <AuthProvider>
+      <ReportProvider>{children}</ReportProvider>
+    </AuthProvider>
+  );
 }
 

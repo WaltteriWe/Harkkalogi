@@ -1,13 +1,12 @@
 "use client";
 
 import React, { useState, useMemo, useRef, useEffect } from "react";
-import Sidebar from "../../components/sidebar";
 import InboxMessageCard, {
   type RoleType,
   type MessageItem,
   type ThreadReply,
   getRolePill,
-} from "../../components/inboxMessageCard";
+} from "@/components/inboxMessageCard";
 
 export type { RoleType, MessageItem, ThreadReply };
 
@@ -177,11 +176,8 @@ export default function MessagesPage() {
   };
 
   return (
-    <div className="app-shell">
-      <Sidebar role="student" userName="Aino Korhonen" />
-
-      <main className="main flex flex-col gap-6">
-        {/* Top Header with title on left and Search Box on top-right */}
+    <>
+      {/* Top Header with title on left and Search Box on top-right */}
         <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1>Messages</h1>
@@ -522,7 +518,6 @@ export default function MessagesPage() {
             )}
           </section>
         </div>
-      </main>
-    </div>
+    </>
   );
 }
