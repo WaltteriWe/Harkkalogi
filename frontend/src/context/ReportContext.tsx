@@ -17,59 +17,123 @@ export interface Attachment {
 }
 
 export interface ReportState {
+  id: string;
+  title: string;
   company: string;
   period: string;
   totalHours: number | string;
   tasksAndLearning: string;
   attachments: Attachment[];
   supervisorFeedbackRequested: boolean;
-  status: "draft" | "submitted";
+  status: "draft" | "submitted" | "approved";
   lastSavedAt: string;
   submittedAt: string | null;
+  approvedAt?: string | null;
+  createdAt: string;
+  teacherFeedback?: string;
 }
 
-const DEFAULT_REPORT_STATE: ReportState = {
-  company: "Nordic Pixel Oy",
-  period: "1.6.2026 – 30.11.2026",
-  totalHours: 800,
-  tasksAndLearning:
-    "I built UI components for the customer portal in React and took part in weekly sprint reviews. The biggest thing I learned was how to collaborate effectively with senior developers and navigate a large existing codebase. I also gained practical experience with TypeScript, automated testing, and designing accessible component libraries following strict design tokens. Working directly on user-facing features taught me to prioritize performance and clean code architecture. Looking forward to applying these skills in upcoming projects and continuing to deepen my practical knowledge.",
-  attachments: [
-    {
-      id: "att-1",
-      name: "Tyotodistus_NordicPixel.pdf",
-      status: "Uploaded",
-    },
-  ],
-  supervisorFeedbackRequested: false,
-  status: "draft",
-  lastSavedAt: "14:32",
-  submittedAt: null,
+export interface ReportStoreState {
+  activeReportId: string;
+  reports: ReportState[];
+}
+
+const DEFAULT_REPORTS: ReportState[] = [
+  {
+    id: "report-final",
+    title: "Final internship report",
+    company: "Nordic Pixel Oy",
+    period: "1.6.2026 – 30.11.2026",
+    totalHours: 800,
+    tasksAndLearning:
+      "I built UI components for the customer portal in React and took part in weekly sprint reviews. The biggest thing I learned was how to collaborate effectively with senior developers and navigate a large existing codebase. I also gained practical experience with TypeScript, automated testing, and designing accessible component libraries following strict design tokens. Working directly on user-facing features taught me to prioritize performance and clean code architecture. Looking forward to applying these skills in upcoming projects and continuing to deepen my practical knowledge.",
+    attachments: [
+      {
+        id: "att-1",
+        name: "Tyotodistus_NordicPixel.pdf",
+        status: "Uploaded",
+        size: "840 KB",
+      },
+    ],
+    supervisorFeedbackRequested: false,
+    status: "draft",
+    lastSavedAt: "14:32",
+    submittedAt: null,
+    createdAt: "1.10.2026",
+  },
+  {
+    id: "report-midterm",
+    title: "Mid-term progress report",
+    company: "Nordic Pixel Oy",
+    period: "1.6.2026 – 15.8.2026",
+    totalHours: 400,
+    tasksAndLearning:
+      "During the first half of my practical training at Nordic Pixel Oy, I focused on frontend bug fixes, design system components, and unit tests. I participated in daily standups and sprint planning. My supervisor Laura Nieminen conducted the mid-term review with positive feedback on code quality and initiative.",
+    attachments: [
+      {
+        id: "att-mid",
+        name: "Valiarviointi_allekirjoitettu.pdf",
+        status: "Uploaded",
+        size: "620 KB",
+      },
+    ],
+    supervisorFeedbackRequested: true,
+    status: "approved",
+    lastSavedAt: "15.8.2026",
+    submittedAt: "15.8.2026",
+    approvedAt: "18.8.2026",
+    createdAt: "1.8.2026",
+    teacherFeedback:
+      "Approved by Mikko Laine: Excellent progress in transitioning to the development team. The learning reflections align well with the degree program goals.",
+  },
+  {
+    id: "report-orientation",
+    title: "Orientation & plan report",
+    company: "Nordic Pixel Oy",
+    period: "1.6.2026 – 30.6.2026",
+    totalHours: 160,
+    tasksAndLearning:
+      "First month orientation report. Completed onboarding, repository setup, access permissions, and initial introduction to Metropolia internship goals with company mentor.",
+    attachments: [],
+    supervisorFeedbackRequested: true,
+    status: "approved",
+    lastSavedAt: "30.6.2026",
+    submittedAt: "30.6.2026",
+    approvedAt: "2.7.2026",
+    createdAt: "1.6.2026",
+    teacherFeedback:
+      "Approved by Mikko Laine: Orientation objectives and initial tasks fulfilled.",
+  },
+];
+
+const DEFAULT_STORE: ReportStoreState = {
+  activeReportId: "report-final",
+  reports: DEFAULT_REPORTS,
 };
 
-const STORAGE_KEY = "harkkalogi_report_state_v1";
+const STORAGE_KEY = "harkkalogi_report_store_v2";
 
-let currentReportState: ReportState = DEFAULT_REPORT_STATE;
+let currentStore: ReportStoreState = DEFAULT_STORE;
 let isLoadedFromStorage = false;
 let listeners: Array<() => void> = [];
 
-function loadFromStorage(): ReportState {
-  if (isLoadedFromStorage) return currentReportState;
+function loadFromStorage(): ReportStoreState {
+  if (isLoadedFromStorage) return currentStore;
   if (typeof window !== "undefined") {
     try {
       const stored = window.localStorage.getItem(STORAGE_KEY);
       if (stored) {
-        currentReportState = {
-          ...DEFAULT_REPORT_STATE,
-          ...JSON.parse(stored),
-        };
+        const parsed = JSON.parse(stored);
+        if (parsed.reports && Array.isArray(parsed.reports)) {
+          currentStore = parsed;
+        }
       }
     } catch {
       // Ignore
     }
     isLoadedFromStorage = true;
   }
-  return currentReportState;
+  return currentStore;
 }
 
 function notify() {
@@ -78,9 +142,11 @@ function notify() {
   }
 }
 
-function setReportState(next: ReportState | ((prev: ReportState) => ReportState)) {
-  const resolved = typeof next === "function" ? next(currentReportState) : next;
-  currentReportState = resolved;
+function setStore(
+  next: ReportStoreState | ((prev: ReportStoreState) => ReportStoreState)
+) {
+  const resolved = typeof next === "function" ? next(currentStore) : next;
+  currentStore = resolved;
   if (typeof window !== "undefined") {
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(resolved));
@@ -96,10 +162,7 @@ function subscribe(listener: () => void) {
   const handleStorageEvent = (event: StorageEvent) => {
     if (event.key === STORAGE_KEY && event.newValue) {
       try {
-        currentReportState = {
-          ...DEFAULT_REPORT_STATE,
-          ...JSON.parse(event.newValue),
-        };
+        currentStore = JSON.parse(event.newValue);
         notify();
       } catch {
         // Ignore
@@ -119,16 +182,22 @@ function subscribe(listener: () => void) {
   };
 }
 
-function getSnapshot(): ReportState {
+function getSnapshot(): ReportStoreState {
   return loadFromStorage();
 }
 
-function getServerSnapshot(): ReportState {
-  return DEFAULT_REPORT_STATE;
+function getServerSnapshot(): ReportStoreState {
+  return DEFAULT_STORE;
 }
 
 export interface ReportContextType {
+  reports: ReportState[];
+  activeReportId: string;
   report: ReportState;
+  setActiveReportId: (id: string) => void;
+  getReport: (id: string) => ReportState | undefined;
+  createReport: (title?: string) => string;
+  deleteReport: (id: string) => void;
   updateField: <K extends keyof ReportState>(field: K, value: ReportState[K]) => void;
   addAttachment: (name: string, size?: string) => void;
   removeAttachment: (id: string) => void;
@@ -156,13 +225,78 @@ function formatCurrentTime(): string {
 }
 
 export function ReportProvider({ children }: { children: ReactNode }) {
-  const report = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const store = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+
+  const activeReport = useMemo(() => {
+    return (
+      store.reports.find((r) => r.id === store.activeReportId) ||
+      store.reports[0] ||
+      DEFAULT_REPORTS[0]
+    );
+  }, [store.reports, store.activeReportId]);
+
+  const setActiveReportId = useCallback((id: string) => {
+    setStore((prev) => ({
+      ...prev,
+      activeReportId: id,
+    }));
+  }, []);
+
+  const getReport = useCallback(
+    (id: string) => {
+      return store.reports.find((r) => r.id === id);
+    },
+    [store.reports]
+  );
+
+  const createReport = useCallback((title?: string): string => {
+    const now = new Date();
+    const dateStr = `${now.getDate()}.${now.getMonth() + 1}.${now.getFullYear()}`;
+    const newId = `report-${Date.now()}`;
+    const newReport: ReportState = {
+      id: newId,
+      title: title?.trim() || "New report",
+      company: "Nordic Pixel Oy",
+      period: "1.6.2026 – 30.11.2026",
+      totalHours: 800,
+      tasksAndLearning: "",
+      attachments: [],
+      supervisorFeedbackRequested: false,
+      status: "draft",
+      lastSavedAt: formatCurrentTime(),
+      submittedAt: null,
+      createdAt: dateStr,
+    };
+
+    setStore((prev) => ({
+      reports: [newReport, ...prev.reports],
+      activeReportId: newId,
+    }));
+
+    return newId;
+  }, []);
+
+  const deleteReport = useCallback((id: string) => {
+    setStore((prev) => {
+      const remaining = prev.reports.filter((r) => r.id !== id);
+      const nextActive =
+        prev.activeReportId === id
+          ? remaining[0]?.id || "report-final"
+          : prev.activeReportId;
+      return {
+        reports: remaining,
+        activeReportId: nextActive,
+      };
+    });
+  }, []);
 
   const updateField = useCallback(
     <K extends keyof ReportState>(field: K, value: ReportState[K]) => {
-      setReportState((prev) => ({
+      setStore((prev) => ({
         ...prev,
-        [field]: value,
+        reports: prev.reports.map((r) =>
+          r.id === prev.activeReportId ? { ...r, [field]: value } : r
+        ),
       }));
     },
     []
@@ -175,49 +309,74 @@ export function ReportProvider({ children }: { children: ReactNode }) {
       status: "Uploaded",
       size,
     };
-    setReportState((prev) => ({
+    setStore((prev) => ({
       ...prev,
-      attachments: [...prev.attachments, newAttachment],
+      reports: prev.reports.map((r) =>
+        r.id === prev.activeReportId
+          ? { ...r, attachments: [...r.attachments, newAttachment] }
+          : r
+      ),
     }));
   }, []);
 
   const removeAttachment = useCallback((id: string) => {
-    setReportState((prev) => ({
+    setStore((prev) => ({
       ...prev,
-      attachments: prev.attachments.filter((item) => item.id !== id),
+      reports: prev.reports.map((r) =>
+        r.id === prev.activeReportId
+          ? {
+              ...r,
+              attachments: r.attachments.filter((item) => item.id !== id),
+            }
+          : r
+      ),
     }));
   }, []);
 
   const toggleSupervisorFeedback = useCallback(() => {
-    setReportState((prev) => ({
+    setStore((prev) => ({
       ...prev,
-      supervisorFeedbackRequested: !prev.supervisorFeedbackRequested,
+      reports: prev.reports.map((r) =>
+        r.id === prev.activeReportId
+          ? {
+              ...r,
+              supervisorFeedbackRequested: !r.supervisorFeedbackRequested,
+            }
+          : r
+      ),
     }));
   }, []);
 
   const saveDraft = useCallback(() => {
     const time = formatCurrentTime();
-    setReportState((prev) => ({
+    setStore((prev) => ({
       ...prev,
-      lastSavedAt: time,
+      reports: prev.reports.map((r) =>
+        r.id === prev.activeReportId
+          ? {
+              ...r,
+              lastSavedAt: time,
+            }
+          : r
+      ),
     }));
   }, []);
 
   const wordCount = useMemo(() => {
-    const trimmed = report.tasksAndLearning.trim();
+    const trimmed = activeReport.tasksAndLearning.trim();
     if (!trimmed) return 0;
     return trimmed.split(/\s+/).filter(Boolean).length;
-  }, [report.tasksAndLearning]);
+  }, [activeReport.tasksAndLearning]);
 
   const checklist = useMemo(() => {
     const isWorkplaceFilled = Boolean(
-      report.company.trim() &&
-        report.period.trim() &&
-        String(report.totalHours).trim()
+      activeReport.company.trim() &&
+        activeReport.period.trim() &&
+        String(activeReport.totalHours).trim()
     );
-    const hasWorkCertificate = report.attachments.length > 0;
+    const hasWorkCertificate = activeReport.attachments.length > 0;
     const isWordCountMet = wordCount >= 300;
-    const isSupervisorFeedbackRequested = report.supervisorFeedbackRequested;
+    const isSupervisorFeedbackRequested = activeReport.supervisorFeedbackRequested;
     const canSubmit = isWorkplaceFilled && hasWorkCertificate && isWordCountMet;
 
     return {
@@ -228,12 +387,12 @@ export function ReportProvider({ children }: { children: ReactNode }) {
       canSubmit,
     };
   }, [
-    report.company,
-    report.period,
-    report.totalHours,
-    report.attachments.length,
+    activeReport.company,
+    activeReport.period,
+    activeReport.totalHours,
+    activeReport.attachments.length,
     wordCount,
-    report.supervisorFeedbackRequested,
+    activeReport.supervisorFeedbackRequested,
   ]);
 
   const submitReport = useCallback((): { success: boolean; message?: string } => {
@@ -248,22 +407,35 @@ export function ReportProvider({ children }: { children: ReactNode }) {
     const formattedDate = `${now.getDate()}.${now.getMonth() + 1}.${now.getFullYear()}`;
     const time = formatCurrentTime();
 
-    setReportState((prev) => ({
+    setStore((prev) => ({
       ...prev,
-      status: "submitted",
-      submittedAt: formattedDate,
-      lastSavedAt: time,
+      reports: prev.reports.map((r) =>
+        r.id === prev.activeReportId
+          ? {
+              ...r,
+              status: "submitted",
+              submittedAt: formattedDate,
+              lastSavedAt: time,
+            }
+          : r
+      ),
     }));
     return { success: true };
   }, [checklist.canSubmit]);
 
   const resetReport = useCallback(() => {
-    setReportState(DEFAULT_REPORT_STATE);
+    setStore(DEFAULT_STORE);
   }, []);
 
   const value = useMemo(
     () => ({
-      report,
+      reports: store.reports,
+      activeReportId: store.activeReportId,
+      report: activeReport,
+      setActiveReportId,
+      getReport,
+      createReport,
+      deleteReport,
       updateField,
       addAttachment,
       removeAttachment,
@@ -275,7 +447,13 @@ export function ReportProvider({ children }: { children: ReactNode }) {
       checklist,
     }),
     [
-      report,
+      store.reports,
+      store.activeReportId,
+      activeReport,
+      setActiveReportId,
+      getReport,
+      createReport,
+      deleteReport,
       updateField,
       addAttachment,
       removeAttachment,

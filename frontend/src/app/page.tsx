@@ -82,7 +82,7 @@ export default function Home() {
                 <p className="meta mt-2 text-base">
                   Your final report is submitted and waiting for review by Mikko Laine.
                 </p>
-                <Link href="/reporting" className="link mt-4 inline-block">
+                <Link href="/report" className="link mt-4 inline-block">
                   Review submitted report →
                 </Link>
               </>
@@ -93,7 +93,7 @@ export default function Home() {
                   Include your tasks, what you learned and the supervisor&apos;s
                   work certificate.
                 </p>
-                <Link href="/reporting" className="link mt-4 inline-block">
+                <Link href="/report" className="link mt-4 inline-block">
                   Continue report →
                 </Link>
               </>

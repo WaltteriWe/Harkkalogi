@@ -7,7 +7,7 @@ export default function ReportButton() {
   const { report } = useReport();
 
   return (
-    <Link href="/reporting" className="btn-primary">
+    <Link href="/report" className="btn-primary">
       {report.status === "submitted" ? "View final report" : "Write final report"}
     </Link>
   );

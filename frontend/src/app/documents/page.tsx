@@ -262,7 +262,7 @@ export default function DocumentsPage() {
                     <td className="text-right">
                       <div className="inline-flex items-center gap-2">
                         {doc.category === "Final report" ? (
-                          <Link href="/reporting" className="link text-sm">
+                          <Link href="/report" className="link text-sm">
                             Edit report →
                           </Link>
                         ) : (

@@ -1,13 +1,20 @@
 "use client";
 
-import React, { useState, type ChangeEvent } from "react";
+import React, { useState, useEffect, Suspense, type ChangeEvent } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import Sidebar from "../../components/sidebar";
 import { useReport } from "../../context/ReportContext";
 
-export default function ReportingPage() {
+function ReportEditor() {
+  const searchParams = useSearchParams();
+  const queryId = searchParams.get("id");
+
   const {
     report,
+    reports,
+    activeReportId,
+    setActiveReportId,
     updateField,
     addAttachment,
     removeAttachment,
@@ -17,6 +24,13 @@ export default function ReportingPage() {
     wordCount,
     checklist,
   } = useReport();
+
+  // If a specific report id was passed in the URL, switch to it
+  useEffect(() => {
+    if (queryId && queryId !== activeReportId && reports.some((r) => r.id === queryId)) {
+      setActiveReportId(queryId);
+    }
+  }, [queryId, activeReportId, reports, setActiveReportId]);
 
   const [notification, setNotification] = useState<{
     type: "success" | "error" | "info";
@@ -43,7 +57,7 @@ export default function ReportingPage() {
     if (res.success) {
       showNotification(
         "success",
-        "Final report submitted successfully! Your teacher has been notified."
+        "Report submitted successfully! Your teacher has been notified."
       );
     } else {
       showNotification("error", res.message || "Please complete all requirements.");
@@ -61,6 +75,9 @@ export default function ReportingPage() {
     }
   };
 
+  const isApproved = report.status === "approved";
+  const isSubmitted = report.status === "submitted";
+
   return (
     <div className="app-shell">
       <Sidebar role="student" userName="Aino Korhonen" />
@@ -68,14 +85,32 @@ export default function ReportingPage() {
       <main className="main flex flex-col gap-6">
         {/* Header section */}
         <div>
-          <Link href="/" className="link-quiet inline-flex items-center gap-1.5 text-sm">
-            ← Back to overview
+          <Link href="/reports" className="link-quiet inline-flex items-center gap-1.5 text-sm">
+            ← Back to reports
           </Link>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-ink">
-            Final report
-          </h1>
+
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-4">
+            <h1 className="text-3xl font-bold tracking-tight text-ink">
+              {report.title}
+            </h1>
+
+            <div>
+              {isApproved ? (
+                <span className="pill-success text-sm px-3 py-1">Approved</span>
+              ) : isSubmitted ? (
+                <span className="pill-info text-sm px-3 py-1">Submitted</span>
+              ) : (
+                <span className="pill-neutral text-sm px-3 py-1">Draft</span>
+              )}
+            </div>
+          </div>
+
           <p className="meta mt-1 text-sm text-ink-muted">
-            Draft saved automatically · last saved {report.lastSavedAt}
+            {isApproved
+              ? `Approved on ${report.approvedAt || "earlier"}`
+              : isSubmitted
+                ? `Submitted on ${report.submittedAt || "recently"}`
+                : `Draft saved automatically · last saved ${report.lastSavedAt}`}
           </p>
         </div>
 
@@ -94,8 +129,25 @@ export default function ReportingPage() {
           </div>
         )}
 
-        {/* Submission banner if already submitted */}
-        {report.status === "submitted" && (
+        {/* Approved banner with teacher feedback */}
+        {isApproved && (
+          <div className="rounded-control bg-success-soft border border-success/20 p-4 text-sm text-success flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <p className="font-semibold text-base">
+                Report approved by Mikko Laine
+              </p>
+              <span className="pill-success">Approved</span>
+            </div>
+            {report.teacherFeedback && (
+              <p className="text-ink leading-relaxed mt-1">
+                {report.teacherFeedback}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Submission banner if under review */}
+        {isSubmitted && !isApproved && (
           <div className="rounded-control bg-info-soft border border-info/20 p-4 text-sm text-info flex items-center justify-between">
             <div>
               <p className="font-semibold">Report is under teacher review</p>
@@ -112,6 +164,22 @@ export default function ReportingPage() {
           {/* Left Column: Form Sections */}
           <div className="flex flex-col gap-6">
             <section className="card flex flex-col gap-8">
+              {/* Report title field */}
+              <div>
+                <label className="field-label" htmlFor="report-title-input">
+                  Report title
+                </label>
+                <input
+                  id="report-title-input"
+                  type="text"
+                  className="input font-semibold"
+                  value={report.title}
+                  onChange={(e) => updateField("title", e.target.value)}
+                  placeholder="e.g. Final internship report"
+                  disabled={isApproved}
+                />
+              </div>
+
               {/* 1. Workplace and period */}
               <div>
                 <h2 className="text-base font-semibold text-ink">
@@ -129,6 +197,7 @@ export default function ReportingPage() {
                       value={report.company}
                       onChange={(e) => updateField("company", e.target.value)}
                       placeholder="e.g. Nordic Pixel Oy"
+                      disabled={isApproved}
                     />
                   </div>
 
@@ -143,6 +212,7 @@ export default function ReportingPage() {
                       value={report.period}
                       onChange={(e) => updateField("period", e.target.value)}
                       placeholder="e.g. 1.6.2026 – 30.11.2026"
+                      disabled={isApproved}
                     />
                   </div>
 
@@ -157,6 +227,7 @@ export default function ReportingPage() {
                       value={report.totalHours}
                       onChange={(e) => updateField("totalHours", e.target.value)}
                       placeholder="800"
+                      disabled={isApproved}
                     />
                   </div>
                 </div>
@@ -179,10 +250,13 @@ export default function ReportingPage() {
                       updateField("tasksAndLearning", e.target.value)
                     }
                     placeholder="Describe your internship tasks and key learnings..."
+                    disabled={isApproved}
                   />
-                  <p className="hint">
-                    Tip: connect your tasks to the learning goals in your internship plan.
-                  </p>
+                  {!isApproved && (
+                    <p className="hint">
+                      Tip: connect your tasks to the learning goals in your internship plan.
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -202,55 +276,67 @@ export default function ReportingPage() {
                       </span>
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="pill-success">{att.status}</span>
-                        <button
-                          type="button"
-                          onClick={() => removeAttachment(att.id)}
-                          className="opacity-0 group-hover:opacity-100 focus:opacity-100 text-ink-subtle hover:text-danger text-sm px-1 transition-opacity"
-                          title="Remove attachment"
-                          aria-label={`Remove ${att.name}`}
-                        >
-                          ✕
-                        </button>
+                        {!isApproved && (
+                          <button
+                            type="button"
+                            onClick={() => removeAttachment(att.id)}
+                            className="opacity-0 group-hover:opacity-100 focus:opacity-100 text-ink-subtle hover:text-danger text-sm px-1 transition-opacity"
+                            title="Remove attachment"
+                            aria-label={`Remove ${att.name}`}
+                          >
+                            ✕
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
 
-                  <label className="btn-dashed cursor-pointer">
-                    <span>+ Add file</span>
-                    <input
-                      type="file"
-                      className="sr-only"
-                      onChange={handleFileUpload}
-                      accept=".pdf,.doc,.docx,.png,.jpg"
-                    />
-                  </label>
+                  {!isApproved && (
+                    <label className="btn-dashed cursor-pointer">
+                      <span>+ Add file</span>
+                      <input
+                        type="file"
+                        className="sr-only"
+                        onChange={handleFileUpload}
+                        accept=".pdf,.doc,.docx,.png,.jpg"
+                      />
+                    </label>
+                  )}
                 </div>
               </div>
             </section>
 
             {/* Action buttons aligned right */}
-            <div className="flex items-center justify-end gap-3">
-              <button
-                type="button"
-                onClick={handleSaveDraft}
-                className="btn-secondary"
-              >
-                Save draft
-              </button>
-              <button
-                type="button"
-                onClick={handleSubmit}
-                className="btn-primary"
-              >
-                {report.status === "submitted" ? "Update submission" : "Submit for review"}
-              </button>
-            </div>
+            {!isApproved ? (
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={handleSaveDraft}
+                  className="btn-secondary"
+                >
+                  Save draft
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  className="btn-primary"
+                >
+                  {isSubmitted ? "Update submission" : "Submit for review"}
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-end">
+                <Link href="/reports" className="btn-secondary">
+                  Back to reports
+                </Link>
+              </div>
+            )}
           </div>
 
           {/* Right Column: Submission Checklist */}
           <aside className="card flex flex-col gap-5">
             <h2 className="text-base font-semibold text-ink">
-              Before you submit
+              {isApproved ? "Report status" : "Before you submit"}
             </h2>
 
             <ul className="flex flex-col gap-3.5 text-sm">
@@ -327,9 +413,12 @@ export default function ReportingPage() {
               <li className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={toggleSupervisorFeedback}
-                  className="flex items-center gap-3 text-left w-full hover:opacity-85 transition-opacity"
-                  title="Click to toggle supervisor feedback status"
+                  onClick={!isApproved ? toggleSupervisorFeedback : undefined}
+                  disabled={isApproved}
+                  className={`flex items-center gap-3 text-left w-full transition-opacity ${
+                    !isApproved ? "hover:opacity-85" : "cursor-default"
+                  }`}
+                  title={!isApproved ? "Click to toggle supervisor feedback status" : undefined}
                 >
                   {checklist.isSupervisorFeedbackRequested ? (
                     <span className="step-icon-done shrink-0" aria-label="Completed">
@@ -354,12 +443,33 @@ export default function ReportingPage() {
             </ul>
 
             {/* Orange deadline banner */}
-            <div className="mt-1 rounded-control bg-brand-soft p-4 text-sm text-brand-ink leading-relaxed">
-              <p>Deadline 15.12.2026. Your teacher is notified when you submit.</p>
-            </div>
+            {!isApproved && (
+              <div className="mt-1 rounded-control bg-brand-soft p-4 text-sm text-brand-ink leading-relaxed">
+                <p>Deadline 15.12.2026. Your teacher is notified when you submit.</p>
+              </div>
+            )}
           </aside>
         </div>
       </main>
     </div>
+  );
+}
+
+export default function ReportPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="app-shell">
+          <Sidebar role="student" userName="Aino Korhonen" />
+          <main className="main flex flex-col gap-6">
+            <div className="p-8 text-center text-ink-muted">
+              Loading report...
+            </div>
+          </main>
+        </div>
+      }
+    >
+      <ReportEditor />
+    </Suspense>
   );
 }

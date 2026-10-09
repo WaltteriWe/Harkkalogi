@@ -8,7 +8,7 @@ export type Role = "student" | "teacher" | "admin";
 const navByRole: Record<Role, { label: string; href: string }[]> = {
   student: [
     { label: "Overview", href: "/" },
-    { label: "Final report", href: "/reporting" },
+    { label: "Reports", href: "/reports" },
     { label: "Documents", href: "/documents" },
     { label: "Messages", href: "/messages" },
   ],
@@ -41,16 +41,22 @@ export default function Sidebar({ role, userName }: SidebarProps) {
       </div>
 
       <nav aria-label="Main" className="flex flex-col gap-1 shrink-0">
-        {navByRole[role].map(({ label, href }) => (
-          <Link
-            key={href}
-            href={href}
-            className="nav-item"
-            aria-current={pathname === href ? "page" : undefined}
-          >
-            {label}
-          </Link>
-        ))}
+        {navByRole[role].map(({ label, href }) => {
+          const isCurrent =
+            pathname === href ||
+            (href === "/reports" && (pathname === "/report" || pathname.startsWith("/report/")));
+
+          return (
+            <Link
+              key={href}
+              href={href}
+              className="nav-item"
+              aria-current={isCurrent ? "page" : undefined}
+            >
+              {label}
+            </Link>
+          );
+        })}
       </nav>
 
       <div className="user-badge">
