@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import Image from "next/image";
 
 export type Role = "student" | "teacher" | "admin";
 
@@ -41,7 +42,7 @@ export default function Sidebar({ role, userName }: SidebarProps = {}) {
   return (
     <aside className="sidebar">
       <div className="mb-6 px-3 shrink-0">
-        <p className="text-xl font-bold">Harkkalogi</p>
+        <Image src="/harkkalogi-logo-reversed.svg" alt="Harkkalogi" width={160} height={33} priority />
         <p className="text-sm text-ink-inverse-muted">Internship reporting</p>
       </div>
 

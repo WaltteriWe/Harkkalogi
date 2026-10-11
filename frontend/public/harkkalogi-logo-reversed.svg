@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="132" viewBox="0 0 640 132" role="img" aria-label="harkkalogi">
+  <g transform="scale(1.375)">
+    <rect width="96" height="96" rx="26" fill="#F3F4F5"/>
+    <line x1="34" y1="24" x2="34" y2="72" stroke="#2B2D31" stroke-width="11" stroke-linecap="round"/>
+    <path d="M34 50 C34 38 42 32 52 32 C62 32 68 39 68 48 L68 58" fill="none" stroke="#2B2D31" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+    <line x1="68" y1="58" x2="68" y2="72" stroke="#E8590C" stroke-width="11" stroke-linecap="round"/>
+  </g>
+  <text x="156" y="100" font-family="'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif" font-size="84" letter-spacing="-2.9"><tspan font-weight="800" fill="#F3F4F5">Harkka</tspan><tspan font-weight="400" fill="#FF8A3D">logi</tspan></text>
+</svg>

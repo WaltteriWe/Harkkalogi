@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   title: "Harkkalogi · Internship reporting",
   description: "Internship reporting for students, teachers and admins",
   icons: {
-    icon: "/harkkalogi-mark.svg",
+    icon: "/harkkalogi-mark-reversed.svg",
   },
 };
 
