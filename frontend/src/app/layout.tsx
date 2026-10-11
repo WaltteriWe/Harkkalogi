@@ -18,6 +18,9 @@ const plexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "Harkkalogi · Internship reporting",
   description: "Internship reporting for students, teachers and admins",
+  icons: {
+    icon: "/harkkalogi-mark.svg",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
