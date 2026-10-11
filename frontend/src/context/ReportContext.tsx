@@ -86,24 +86,6 @@ const DEFAULT_REPORTS: ReportState[] = [
     teacherFeedback:
       "Approved by Mikko Laine: Excellent progress in transitioning to the development team. The learning reflections align well with the degree program goals.",
   },
-  {
-    id: "report-orientation",
-    title: "Orientation & plan report",
-    company: "Nordic Pixel Oy",
-    period: "1.6.2026 – 30.6.2026",
-    totalHours: 160,
-    tasksAndLearning:
-      "First month orientation report. Completed onboarding, repository setup, access permissions, and initial introduction to Metropolia internship goals with company mentor.",
-    attachments: [],
-    supervisorFeedbackRequested: true,
-    status: "approved",
-    lastSavedAt: "30.6.2026",
-    submittedAt: "30.6.2026",
-    approvedAt: "2.7.2026",
-    createdAt: "1.6.2026",
-    teacherFeedback:
-      "Approved by Mikko Laine: Orientation objectives and initial tasks fulfilled.",
-  },
 ];
 
 const DEFAULT_STORE: ReportStoreState = {
@@ -111,7 +93,7 @@ const DEFAULT_STORE: ReportStoreState = {
   reports: DEFAULT_REPORTS,
 };
 
-const STORAGE_KEY = "harkkalogi_report_store_v2";
+const STORAGE_KEY = "harkkalogi_report_store_v3";
 
 let currentStore: ReportStoreState = DEFAULT_STORE;
 let isLoadedFromStorage = false;
