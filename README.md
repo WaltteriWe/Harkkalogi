@@ -18,7 +18,7 @@ Students report on internships they have completed; teachers review and approve 
 | Layer    | Technology              |
 |----------|-------------------------|
 | Frontend | Next.js / React         |
-| Backend  | TBD                     |
-| Database | TBD                     |
+| Backend  | Node.js                 |
+| Database | Prisma                  |
 | Hosting  | TBD                     |
 
