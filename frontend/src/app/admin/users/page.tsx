@@ -1,81 +1,65 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { Role } from "@/components/sidebar";
+import React, { useEffect, useState, useMemo } from "react";
+import { type Role } from "@/context/AuthContext";
 
 export interface ManagedUser {
-  id: string;
+  id: number;
   name: string;
   email: string;
   role: Role;
   supervisingTeacher: string | null;
+  supervisingTeacherId: number | null;
+  title: string;
 }
 
-const INITIAL_USERS: ManagedUser[] = [
-  {
-    id: "usr-1",
-    name: "Aino Korhonen",
-    email: "aino.korhonen@example.fi",
-    role: "student",
-    supervisingTeacher: "Mikko Laine",
-  },
-  {
-    id: "usr-2",
-    name: "Linnea Berg",
-    email: "linnea.berg@example.fi",
-    role: "student",
-    supervisingTeacher: "Hanna Peltonen",
-  },
-  {
-    id: "usr-3",
-    name: "Aleksi Virtanen",
-    email: "aleksi.virtanen@example.fi",
-    role: "student",
-    supervisingTeacher: null, // "Not assigned"
-  },
-  {
-    id: "usr-4",
-    name: "Oskari Nurmi",
-    email: "oskari.nurmi@example.fi",
-    role: "student",
-    supervisingTeacher: "Hanna Peltonen",
-  },
-  {
-    id: "usr-5",
-    name: "Mikko Laine",
-    email: "mikko.laine@example.fi",
-    role: "teacher",
-    supervisingTeacher: null,
-  },
-  {
-    id: "usr-6",
-    name: "Hanna Peltonen",
-    email: "hanna.peltonen@example.fi",
-    role: "teacher",
-    supervisingTeacher: null,
-  },
-  {
-    id: "usr-7",
-    name: "Riikka Aalto",
-    email: "riikka.aalto@example.fi",
-    role: "admin",
-    supervisingTeacher: null,
-  },
-];
+const backendUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
-const AVAILABLE_TEACHERS = ["Mikko Laine", "Hanna Peltonen"];
+async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${backendUrl}${path}`, {
+    ...init,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...init?.headers,
+    },
+  });
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message =
+      body && typeof body === "object" && "error" in body &&
+      typeof body.error === "string"
+        ? body.error
+        : "The request could not be completed.";
+    throw new Error(message);
+  }
+  return body as T;
+}
 
 export default function UsersAndRolesPage() {
-  const [users, setUsers] = useState<ManagedUser[]>(INITIAL_USERS);
+  const [users, setUsers] = useState<ManagedUser[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [editingUser, setEditingUser] = useState<ManagedUser | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
+  const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
+  const [savingSupervisorId, setSavingSupervisorId] = useState<number | null>(null);
 
   // Form states for Add User
   const [newName, setNewName] = useState("");
+  const [newTitle, setNewTitle] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [newRole, setNewRole] = useState<Role>("student");
-  const [newTeacher, setNewTeacher] = useState<string>("");
+
+  useEffect(() => {
+    void apiRequest<{ users: ManagedUser[] }>("/api/admin/users")
+      .then(({ users: loadedUsers }) => setUsers(loadedUsers))
+      .catch((error: unknown) => {
+        setPageError(
+          error instanceof Error ? error.message : "Could not load user accounts."
+        );
+      });
+  }, []);
 
   const filteredUsers = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
@@ -88,35 +72,96 @@ export default function UsersAndRolesPage() {
     );
   }, [users, searchQuery]);
 
-  const handleSaveEdit = (e: React.FormEvent) => {
+  const teachers = useMemo(
+    () => users.filter((user) => user.role === "teacher"),
+    [users]
+  );
+
+  const handleAssignTeacher = async (student: ManagedUser, value: string) => {
+    const supervisingTeacherId = value ? Number(value) : null;
+    setPageError(null);
+    setSavingSupervisorId(student.id);
+    try {
+      const result = await apiRequest<{
+        student: {
+          id: number;
+          supervisingTeacherId: number | null;
+          supervisingTeacher: string | null;
+        };
+      }>(`/api/admin/users/${student.id}/supervisor`, {
+        method: "PATCH",
+        body: JSON.stringify({ supervisingTeacherId }),
+      });
+      setUsers((currentUsers) =>
+        currentUsers.map((user) =>
+          user.id === student.id ? { ...user, ...result.student } : user
+        )
+      );
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : "Could not assign teacher.");
+    } finally {
+      setSavingSupervisorId(null);
+    }
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
 
-    setUsers((prev) =>
-      prev.map((u) => (u.id === editingUser.id ? editingUser : u))
-    );
-    setEditingUser(null);
+    setPageError(null);
+    try {
+      await apiRequest(`/api/admin/users/${editingUser.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(editingUser),
+      });
+      setUsers((prev) =>
+        prev.map((u) => (u.id === editingUser.id ? editingUser : u))
+      );
+      setEditingUser(null);
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : "Could not save user.");
+    }
   };
 
-  const handleAddUser = (e: React.FormEvent) => {
+  const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newName.trim() || !newEmail.trim()) return;
+    setPageError(null);
+    try {
+      const result = await apiRequest<{
+        user: ManagedUser;
+        temporaryPassword: string;
+      }>("/api/admin/users", {
+        method: "POST",
+        body: JSON.stringify({
+          name: newName,
+          title: newTitle,
+          email: newEmail,
+          role: newRole,
+        }),
+      });
+      setUsers((prev) => [...prev, result.user]);
+      setTemporaryPassword(result.temporaryPassword);
+      setNewName("");
+      setNewTitle("");
+      setNewEmail("");
+      setNewRole("student");
+      setIsAddModalOpen(false);
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : "Could not create account.");
+    }
+  };
 
-    const created: ManagedUser = {
-      id: `usr-${Date.now()}`,
-      name: newName.trim(),
-      email: newEmail.trim(),
-      role: newRole,
-      supervisingTeacher:
-        newRole === "student" && newTeacher ? newTeacher : null,
-    };
-
-    setUsers((prev) => [...prev, created]);
-    setNewName("");
-    setNewEmail("");
-    setNewRole("student");
-    setNewTeacher("");
-    setIsAddModalOpen(false);
+  const handleResetPassword = async (user: ManagedUser) => {
+    setPageError(null);
+    try {
+      const result = await apiRequest<{ temporaryPassword: string }>(
+        `/api/admin/users/${user.id}/reset-password`,
+        { method: "POST" }
+      );
+      setTemporaryPassword(`${user.email}: ${result.temporaryPassword}`);
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : "Could not reset password.");
+    }
   };
 
   const getRoleBadge = (role: Role) => {
@@ -169,6 +214,31 @@ export default function UsersAndRolesPage() {
         </div>
       </header>
 
+      {pageError && (
+        <p role="alert" className="card border-danger text-sm text-danger">
+          {pageError}
+        </p>
+      )}
+      {temporaryPassword && (
+        <section className="card border-warning">
+          <h2 className="font-semibold text-ink">Temporary password</h2>
+          <p className="text-sm text-ink-muted mt-1">
+            Share this securely with the user. It is shown only once; the user
+            must change it after signing in.
+          </p>
+          <code className="mt-2 block break-all rounded bg-surface-muted p-3 text-sm">
+            {temporaryPassword}
+          </code>
+          <button
+            type="button"
+            onClick={() => setTemporaryPassword(null)}
+            className="btn-secondary mt-3 self-start text-sm"
+          >
+            Close
+          </button>
+        </section>
+      )}
+
       {/* Main Table Card */}
       <div className="card p-0 overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
@@ -179,14 +249,16 @@ export default function UsersAndRolesPage() {
                 <th className="w-1/4">Email</th>
                 <th className="w-1/6">Role</th>
                 <th className="w-1/4">Supervising teacher</th>
-                <th className="w-16 text-right"></th>
+                <th className="text-right">Account</th>
               </tr>
             </thead>
             <tbody>
               {filteredUsers.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="py-8 text-center text-sm text-ink-muted">
-                    No users matching &quot;{searchQuery}&quot;
+                    {users.length === 0
+                      ? "No accounts have been created yet."
+                      : `No users matching "${searchQuery}"`}
                   </td>
                 </tr>
               ) : (
@@ -210,15 +282,22 @@ export default function UsersAndRolesPage() {
                     {/* Supervising Teacher */}
                     <td>
                       {user.role === "student" ? (
-                        user.supervisingTeacher ? (
-                          <span className="text-ink font-normal">
-                            {user.supervisingTeacher}
-                          </span>
-                        ) : (
-                          <span className="font-semibold text-danger">
-                            Not assigned
-                          </span>
-                        )
+                        <select
+                          aria-label={`Supervising teacher for ${user.name}`}
+                          value={user.supervisingTeacherId ?? ""}
+                          disabled={savingSupervisorId === user.id}
+                          onChange={(event) =>
+                            void handleAssignTeacher(user, event.target.value)
+                          }
+                          className="input max-w-56 py-1.5 text-sm"
+                        >
+                          <option value="">Not assigned</option>
+                          {teachers.map((teacher) => (
+                            <option key={teacher.id} value={teacher.id}>
+                              {teacher.name}
+                            </option>
+                          ))}
+                        </select>
                       ) : (
                         <span className="text-ink-muted font-normal">—</span>
                       )}
@@ -226,13 +305,22 @@ export default function UsersAndRolesPage() {
 
                     {/* Action */}
                     <td className="text-right">
-                      <button
-                        type="button"
-                        onClick={() => setEditingUser(user)}
-                        className="font-semibold text-brand hover:text-brand-hover text-sm"
-                      >
-                        Edit
-                      </button>
+                      <div className="flex justify-end gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setEditingUser(user)}
+                          className="font-semibold text-brand hover:text-brand-hover text-sm"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleResetPassword(user)}
+                          className="font-semibold text-brand hover:text-brand-hover text-sm"
+                        >
+                          Reset password
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -250,7 +338,7 @@ export default function UsersAndRolesPage() {
               Edit User &amp; Role
             </h2>
             <p className="text-xs text-ink-muted mb-4">
-              Update role and supervising teacher assignment for {editingUser.name}.
+              Update account details for {editingUser.name}.
             </p>
 
             <form onSubmit={handleSaveEdit} className="flex flex-col gap-4">
@@ -261,6 +349,19 @@ export default function UsersAndRolesPage() {
                   value={editingUser.name}
                   onChange={(e) =>
                     setEditingUser({ ...editingUser, name: e.target.value })
+                  }
+                  required
+                  className="input text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="field-label">Professional title</label>
+                <input
+                  type="text"
+                  value={editingUser.title}
+                  onChange={(e) =>
+                    setEditingUser({ ...editingUser, title: e.target.value })
                   }
                   required
                   className="input text-sm"
@@ -289,8 +390,6 @@ export default function UsersAndRolesPage() {
                     setEditingUser({
                       ...editingUser,
                       role: newR,
-                      supervisingTeacher:
-                        newR === "student" ? editingUser.supervisingTeacher : null,
                     });
                   }}
                   className="input text-sm"
@@ -300,29 +399,6 @@ export default function UsersAndRolesPage() {
                   <option value="admin">Admin</option>
                 </select>
               </div>
-
-              {editingUser.role === "student" && (
-                <div>
-                  <label className="field-label">Supervising Teacher</label>
-                  <select
-                    value={editingUser.supervisingTeacher || ""}
-                    onChange={(e) =>
-                      setEditingUser({
-                        ...editingUser,
-                        supervisingTeacher: e.target.value || null,
-                      })
-                    }
-                    className="input text-sm"
-                  >
-                    <option value="">Not assigned</option>
-                    {AVAILABLE_TEACHERS.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
 
               <div className="flex items-center justify-end gap-3 mt-4 pt-3 border-t border-border">
                 <button
@@ -350,7 +426,7 @@ export default function UsersAndRolesPage() {
           <div className="card w-full max-w-md p-6 shadow-xl animate-fade-in">
             <h2 className="text-lg font-bold text-ink mb-1">Add new user</h2>
             <p className="text-xs text-ink-muted mb-4">
-              Create a new user account and set their role and teacher assignment.
+              Create an account. The temporary password will be shown after creation.
             </p>
 
             <form onSubmit={handleAddUser} className="flex flex-col gap-4">
@@ -361,6 +437,18 @@ export default function UsersAndRolesPage() {
                   placeholder="e.g. Ville Hämäläinen"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
+                  required
+                  className="input text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="field-label">Professional title</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Software Engineering Student"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
                   required
                   className="input text-sm"
                 />
@@ -391,24 +479,6 @@ export default function UsersAndRolesPage() {
                 </select>
               </div>
 
-              {newRole === "student" && (
-                <div>
-                  <label className="field-label">Supervising Teacher</label>
-                  <select
-                    value={newTeacher}
-                    onChange={(e) => setNewTeacher(e.target.value)}
-                    className="input text-sm"
-                  >
-                    <option value="">Not assigned</option>
-                    {AVAILABLE_TEACHERS.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
               <div className="flex items-center justify-end gap-3 mt-4 pt-3 border-t border-border">
                 <button
                   type="button"
@@ -431,4 +501,3 @@ export default function UsersAndRolesPage() {
     </div>
   );
 }
-

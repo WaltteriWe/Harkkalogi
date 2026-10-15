@@ -2,10 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, type Role } from "@/context/AuthContext";
 import Image from "next/image";
-
-export type Role = "student" | "teacher" | "admin";
 
 const navByRole: Record<Role, { label: string; href: string }[]> = {
   student: [
@@ -13,17 +11,20 @@ const navByRole: Record<Role, { label: string; href: string }[]> = {
     { label: "Reports", href: "/reports" },
     { label: "Documents", href: "/documents" },
     { label: "Messages", href: "/messages" },
+    { label: "My profile", href: "/profile" },
   ],
   teacher: [
     { label: "Review queue", href: "/teacher-view" },
     { label: "My students", href: "/teacher-view/students" },
     { label: "Messages", href: "/messages" },
+    { label: "My profile", href: "/profile" },
   ],
   admin: [
     { label: "Overview", href: "/admin" },
     { label: "Users and roles", href: "/admin/users" },
     { label: "Programmes", href: "/admin/programmes" },
     { label: "Settings", href: "/admin/settings" },
+    { label: "My profile", href: "/profile" },
   ],
 };
 
@@ -68,13 +69,13 @@ export default function Sidebar({ role, userName }: SidebarProps = {}) {
       <div className="user-badge flex items-center justify-between gap-2">
         <div className="min-w-0">
           <p className="text-xs tracking-wider text-ink-inverse-muted uppercase">
-            {activeRole}
+            {user?.title || activeRole}
           </p>
           <p className="font-semibold truncate">{activeUserName}</p>
         </div>
         <button
           type="button"
-          onClick={logout}
+          onClick={() => void logout()}
           className="text-xs font-medium text-ink-inverse-muted hover:text-white px-2 py-1 rounded hover:bg-white/10 transition-colors shrink-0"
           title="Sign out and return to login"
         >
