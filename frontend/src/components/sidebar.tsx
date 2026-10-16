@@ -42,7 +42,13 @@ export default function Sidebar({ role, userName }: SidebarProps = {}) {
   return (
     <aside className="sidebar">
       <div className="mb-6 px-3 shrink-0">
-        <Image src="/harkkalogi-logo-reversed.svg" alt="Harkkalogi" width={160} height={33} priority />
+        <Image
+          src="/harkkalogi-logo-reversed.svg"
+          alt="Harkkalogi"
+          width={160}
+          height={33}
+          priority
+        />
         <p className="text-sm text-ink-inverse-muted">Internship reporting</p>
       </div>
 
@@ -50,7 +56,8 @@ export default function Sidebar({ role, userName }: SidebarProps = {}) {
         {navByRole[activeRole]?.map(({ label, href }) => {
           const isCurrent =
             pathname === href ||
-            (href === "/reports" && (pathname === "/report" || pathname.startsWith("/report/")));
+            (href === "/reports" &&
+              (pathname === "/report" || pathname.startsWith("/report/")));
 
           return (
             <Link

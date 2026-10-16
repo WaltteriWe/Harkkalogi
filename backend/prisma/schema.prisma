@@ -17,6 +17,11 @@ enum Role {
   ADMIN
 }
 
+enum StudyType {
+  DAYTIME
+  MULTIFORM
+}
+
 enum InternshipStatus {
   ONGOING
   COMPLETED
@@ -34,11 +39,13 @@ enum ReviewDecision {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  name      String
-  role      Role
-  createdAt DateTime @default(now())
+  id           Int        @id @default(autoincrement())
+  email        String     @unique
+  passwordHash String
+  name         String
+  role         Role
+  studyType    StudyType? // DAYTIME or MULTIFORM (applicable when role == STUDENT)
+  createdAt    DateTime   @default(now())
 
   // Student side
   internships Internship[] @relation("StudentInternships")
@@ -46,6 +53,10 @@ model User {
   // Teacher side
   supervised Internship[] @relation("TeacherInternships")
   reviews    Review[]
+
+  // Messaging relations
+  sentMessages     Message[] @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
 }
 
 model Internship {
@@ -62,7 +73,8 @@ model Internship {
   teacherId Int?
   teacher   User? @relation("TeacherInternships", fields: [teacherId], references: [id])
 
-  reports Report[]
+  reports  Report[]
+  messages Message[]
 
   @@index([studentId])
   @@index([teacherId])
@@ -100,4 +112,53 @@ model Review {
 
   @@index([reportId])
   @@index([teacherId])
+}
+
+model Message {
+  id        Int      @id @default(autoincrement())
+  subject   String?  // Thread subject (optional on thread replies)
+  body      String   @db.Text
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Sender (User)
+  senderId Int
+  sender   User @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+
+  // Recipient (User)
+  recipientId Int?
+  recipient   User? @relation("ReceivedMessages", fields: [recipientId], references: [id], onDelete: SetNull)
+
+  // Contextual link to an internship
+  internshipId Int?
+  internship   Internship? @relation(fields: [internshipId], references: [id], onDelete: SetNull)
+
+  // Threading: Parent message and thread replies
+  parentId Int?
+  parent   Message?  @relation("ThreadReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies  Message[] @relation("ThreadReplies")
+
+  // File attachments
+  attachments MessageAttachment[]
+
+  @@index([senderId])
+  @@index([recipientId])
+  @@index([internshipId])
+  @@index([parentId])
+  @@index([read])
+}
+
+model MessageAttachment {
+  id        Int      @id @default(autoincrement())
+  name      String   // File display name (e.g. Harjoittelusopimus_hyvaksytty.pdf)
+  size      String?  // Formatted file size (e.g. "1.2 MB")
+  fileUrl   String   // Storage location or download URL
+  mimeType  String?
+  createdAt DateTime @default(now())
+
+  messageId Int
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
 }

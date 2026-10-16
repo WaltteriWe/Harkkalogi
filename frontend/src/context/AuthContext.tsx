@@ -4,65 +4,74 @@ import React, {
   createContext,
   useContext,
   useCallback,
+  useEffect,
   useSyncExternalStore,
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
 import { Role } from "@/components/sidebar";
+import {
+  apiFetch,
+  TOKEN_STORAGE_KEY,
+  USER_STORAGE_KEY,
+} from "@/lib/api";
 
 export interface User {
   id: number;
   name: string;
   email: string;
   role: Role;
-  title: string;
+  studyType?: "DAYTIME" | "MULTIFORM" | null;
+  title?: string;
   department?: string;
   landingPath: string;
 }
 
-export const MOCK_USERS: Record<Role, User> = {
-  student: {
+export interface UserPreset {
+  id: number;
+  name: string;
+  email: string;
+  role: Role;
+  defaultPassword?: string;
+}
+
+export const SEED_USERS: UserPreset[] = [
+  {
     id: 1,
     name: "Aino Korhonen",
     email: "aino.korhonen@metropolia.fi",
     role: "student",
-    title: "Software Engineering Student",
-    department: "Information Technology",
-    landingPath: "/",
+    defaultPassword: "password123",
   },
-  teacher: {
+  {
     id: 2,
     name: "Mikko Laine",
     email: "mikko.laine@metropolia.fi",
     role: "teacher",
-    title: "Supervising Teacher",
-    department: "School of ICT",
-    landingPath: "/teacher-view",
+    defaultPassword: "password123",
   },
-  admin: {
+  {
     id: 3,
     name: "Admin User",
     email: "admin@metropolia.fi",
     role: "admin",
-    title: "System Administrator",
-    department: "Academic Administration",
-    landingPath: "/admin",
+    defaultPassword: "password123",
   },
-};
+];
 
-export const MOCK_USER_LIST: User[] = Object.values(MOCK_USERS);
-
-const TOKEN_STORAGE_KEY = "harkkalogi_auth_token";
-const USER_STORAGE_KEY = "harkkalogi_auth_user";
+// Retain alias for any components relying on preset listings
+export const MOCK_USER_LIST = SEED_USERS;
 
 interface AuthStoreState {
   user: User | null;
   token: string | null;
+  isLoading: boolean;
 }
 
 const DEFAULT_AUTH_STORE: AuthStoreState = {
-  user: MOCK_USERS.student,
-  token: "mock-token-student-default",
+  user: null,
+  token: null,
+  isLoading: true,
 };
 
 let currentStore: AuthStoreState = DEFAULT_AUTH_STORE;
@@ -80,20 +89,21 @@ function loadFromStorage(): AuthStoreState {
         currentStore = {
           user: JSON.parse(storedUser),
           token: storedToken,
+          isLoading: false,
         };
       } else {
-        window.localStorage.setItem(
-          USER_STORAGE_KEY,
-          JSON.stringify(DEFAULT_AUTH_STORE.user)
-        );
-        window.localStorage.setItem(
-          TOKEN_STORAGE_KEY,
-          DEFAULT_AUTH_STORE.token || ""
-        );
-        currentStore = DEFAULT_AUTH_STORE;
+        currentStore = {
+          user: null,
+          token: null,
+          isLoading: false,
+        };
       }
     } catch {
-      currentStore = DEFAULT_AUTH_STORE;
+      currentStore = {
+        user: null,
+        token: null,
+        isLoading: false,
+      };
     }
     isLoadedFromStorage = true;
   }
@@ -138,9 +148,10 @@ function subscribe(listener: () => void) {
           currentStore = {
             user: JSON.parse(storedUser),
             token: storedToken,
+            isLoading: false,
           };
         } else {
-          currentStore = { user: null, token: null };
+          currentStore = { user: null, token: null, isLoading: false };
         }
         notify();
       } catch {
@@ -166,8 +177,9 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
+  isLoading: boolean;
   login: (email: string, password?: string) => Promise<boolean>;
-  quickLogin: (role: Role) => void;
+  quickLogin: (role: Role) => Promise<boolean>;
   logout: () => void;
 }
 
@@ -182,66 +194,69 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => DEFAULT_AUTH_STORE
   );
 
-  const login = useCallback(
-    async (email: string): Promise<boolean> => {
-      const trimmedEmail = email.trim().toLowerCase();
+  // Validate session against backend /api/auth/me on mount if token exists
+  useEffect(() => {
+    if (!store.token) return;
 
-      const matchedUser = MOCK_USER_LIST.find(
-        (u) => u.email.toLowerCase() === trimmedEmail
-      );
-
-      let targetUser: User;
-      if (matchedUser) {
-        targetUser = matchedUser;
-      } else if (trimmedEmail.includes("teacher")) {
-        targetUser = {
-          ...MOCK_USERS.teacher,
-          email: trimmedEmail,
-          name: trimmedEmail.split("@")[0].replace(".", " "),
-        };
-      } else if (trimmedEmail.includes("admin")) {
-        targetUser = {
-          ...MOCK_USERS.admin,
-          email: trimmedEmail,
-          name: trimmedEmail.split("@")[0].replace(".", " "),
-        };
-      } else {
-        targetUser = {
-          ...MOCK_USERS.student,
-          email: trimmedEmail,
-          name: trimmedEmail.split("@")[0].replace(".", " ") || "New Student",
-        };
-      }
-
-      const generatedToken = `mock-token-${targetUser.role}-${Date.now()}`;
-      setStore({
-        user: targetUser,
-        token: generatedToken,
+    let isMounted = true;
+    apiFetch<{ user: User }>("/auth/me")
+      .then((data) => {
+        if (isMounted && data.user) {
+          setStore({
+            user: data.user,
+            token: store.token,
+            isLoading: false,
+          });
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          // Stored token is invalid or expired
+          setStore({ user: null, token: null, isLoading: false });
+        }
       });
 
-      router.push(targetUser.landingPath);
+    return () => {
+      isMounted = false;
+    };
+  }, [store.token]);
+
+  const login = useCallback(
+    async (email: string, password = "password123"): Promise<boolean> => {
+      const trimmedEmail = email.trim().toLowerCase();
+
+      const res = await apiFetch<{ token: string; user: User }>("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email: trimmedEmail, password }),
+      });
+
+      setStore({
+        user: res.user,
+        token: res.token,
+        isLoading: false,
+      });
+
+      router.push(res.user.landingPath);
       return true;
     },
     [router]
   );
 
   const quickLogin = useCallback(
-    (role: Role) => {
-      const targetUser = MOCK_USERS[role];
+    async (role: Role): Promise<boolean> => {
+      const targetUser = SEED_USERS.find((u) => u.role === role);
       if (targetUser) {
-        const generatedToken = `mock-token-${targetUser.role}-${Date.now()}`;
-        setStore({
-          user: targetUser,
-          token: generatedToken,
-        });
-        router.push(targetUser.landingPath);
+        return login(targetUser.email, targetUser.defaultPassword || "password123");
       }
+      return false;
     },
-    [router]
+    [login]
   );
 
   const logout = useCallback(() => {
-    setStore({ user: null, token: null });
+    // Fire-and-forget backend logout
+    apiFetch("/auth/logout", { method: "POST" }).catch(() => {});
+    setStore({ user: null, token: null, isLoading: false });
     router.push("/login");
   }, [router]);
 
@@ -249,6 +264,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user: store.user,
     token: store.token,
     isAuthenticated: Boolean(store.token && store.user),
+    isLoading: store.isLoading,
     login,
     quickLogin,
     logout,
@@ -264,4 +280,3 @@ export function useAuth(): AuthContextType {
   }
   return context;
 }
-
