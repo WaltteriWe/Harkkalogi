@@ -318,6 +318,248 @@ async function handleRequest(request: IncomingMessage, response: ServerResponse)
     return;
   }
 
+  if (method === "GET" && path === "/api/messages/recipients") {
+    const session = await getSession(request);
+    if (!session) {
+      sendJson(response, 401, { error: "Sign in to continue." });
+      return;
+    }
+    const recipients = await prisma.user.findMany({
+      where: { id: { not: session.user.id } },
+      orderBy: [{ name: "asc" }, { email: "asc" }],
+      select: { id: true, name: true, email: true, role: true, title: true },
+    });
+    sendJson(response, 200, {
+      recipients: recipients.map((recipient) => ({
+        ...recipient,
+        role: recipient.role.toLowerCase(),
+      })),
+    });
+    return;
+  }
+
+  if (method === "GET" && path === "/api/messages") {
+    const session = await getSession(request);
+    if (!session) {
+      sendJson(response, 401, { error: "Sign in to continue." });
+      return;
+    }
+    const conversations = await prisma.conversation.findMany({
+      where: {
+        OR: [
+          { participantOneId: session.user.id },
+          { participantTwoId: session.user.id },
+        ],
+      },
+      orderBy: { updatedAt: "desc" },
+      include: {
+        participantOne: {
+          select: { id: true, name: true, email: true, role: true, title: true },
+        },
+        participantTwo: {
+          select: { id: true, name: true, email: true, role: true, title: true },
+        },
+        messages: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
+      },
+    });
+    const result = await Promise.all(
+      conversations.map(async (conversation) => {
+        const lastMessage = conversation.messages[0];
+        const counterpart =
+          conversation.participantOneId === session.user.id
+            ? conversation.participantTwo
+            : conversation.participantOne;
+        const unreadCount = await prisma.message.count({
+          where: {
+            conversationId: conversation.id,
+            senderId: { not: session.user.id },
+            readAt: null,
+          },
+        });
+        return {
+          id: conversation.id,
+          subject: conversation.subject,
+          updatedAt: conversation.updatedAt,
+          counterpart: { ...counterpart, role: counterpart.role.toLowerCase() },
+          lastMessage: lastMessage
+            ? {
+                body: lastMessage.body,
+                senderId: lastMessage.senderId,
+                createdAt: lastMessage.createdAt,
+              }
+            : null,
+          unreadCount,
+        };
+      })
+    );
+    sendJson(response, 200, { conversations: result });
+    return;
+  }
+
+  if (method === "POST" && path === "/api/messages") {
+    const session = await getSession(request);
+    if (!session) {
+      sendJson(response, 401, { error: "Sign in to continue." });
+      return;
+    }
+    const body = await readJson(request);
+    const recipientId = body.recipientId;
+    const subject = typeof body.subject === "string" ? body.subject.trim() : "";
+    const message = typeof body.body === "string" ? body.body.trim() : "";
+    if (
+      typeof recipientId !== "number" ||
+      !Number.isSafeInteger(recipientId) ||
+      recipientId <= 0 ||
+      recipientId === session.user.id
+    ) {
+      sendJson(response, 400, { error: "Choose a valid recipient." });
+      return;
+    }
+    if (!subject || subject.length > 160) {
+      sendJson(response, 400, { error: "Subject is required and must be at most 160 characters." });
+      return;
+    }
+    if (!message || message.length > 5000) {
+      sendJson(response, 400, { error: "Message is required and must be at most 5,000 characters." });
+      return;
+    }
+    const recipient = await prisma.user.findUnique({
+      where: { id: recipientId },
+      select: { id: true },
+    });
+    if (!recipient) {
+      sendJson(response, 404, { error: "The selected recipient was not found." });
+      return;
+    }
+
+    const conversation = await prisma.conversation.create({
+      data: {
+        subject,
+        participantOneId: session.user.id,
+        participantTwoId: recipient.id,
+        messages: {
+          create: { body: message, senderId: session.user.id },
+        },
+      },
+      select: { id: true },
+    });
+    sendJson(response, 201, { conversationId: conversation.id });
+    return;
+  }
+
+  const messageReplyMatch = path.match(/^\/api\/messages\/(\d+)\/replies$/);
+  if (method === "POST" && messageReplyMatch) {
+    const session = await getSession(request);
+    if (!session) {
+      sendJson(response, 401, { error: "Sign in to continue." });
+      return;
+    }
+    const conversationId = Number(messageReplyMatch[1]);
+    const conversation = await prisma.conversation.findFirst({
+      where: {
+        id: conversationId,
+        OR: [
+          { participantOneId: session.user.id },
+          { participantTwoId: session.user.id },
+        ],
+      },
+      select: { id: true },
+    });
+    if (!conversation) {
+      sendJson(response, 404, { error: "Conversation was not found." });
+      return;
+    }
+    const body = await readJson(request);
+    const message = typeof body.body === "string" ? body.body.trim() : "";
+    if (!message || message.length > 5000) {
+      sendJson(response, 400, { error: "Reply is required and must be at most 5,000 characters." });
+      return;
+    }
+    await prisma.$transaction([
+      prisma.message.create({
+        data: {
+          conversationId,
+          senderId: session.user.id,
+          body: message,
+        },
+      }),
+      prisma.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: new Date() },
+      }),
+    ]);
+    sendJson(response, 201, { success: true });
+    return;
+  }
+
+  const messageConversationMatch = path.match(/^\/api\/messages\/(\d+)$/);
+  if (method === "GET" && messageConversationMatch) {
+    const session = await getSession(request);
+    if (!session) {
+      sendJson(response, 401, { error: "Sign in to continue." });
+      return;
+    }
+    const conversationId = Number(messageConversationMatch[1]);
+    const conversation = await prisma.conversation.findFirst({
+      where: {
+        id: conversationId,
+        OR: [
+          { participantOneId: session.user.id },
+          { participantTwoId: session.user.id },
+        ],
+      },
+      include: {
+        participantOne: {
+          select: { id: true, name: true, email: true, role: true },
+        },
+        participantTwo: {
+          select: { id: true, name: true, email: true, role: true },
+        },
+      },
+    });
+    if (!conversation) {
+      sendJson(response, 404, { error: "Conversation was not found." });
+      return;
+    }
+    await prisma.message.updateMany({
+      where: {
+        conversationId,
+        senderId: { not: session.user.id },
+        readAt: null,
+      },
+      data: { readAt: new Date() },
+    });
+    const messages = await prisma.message.findMany({
+      where: { conversationId },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      include: {
+        sender: { select: { id: true, name: true, role: true } },
+      },
+    });
+    const counterpart =
+      conversation.participantOneId === session.user.id
+        ? conversation.participantTwo
+        : conversation.participantOne;
+    sendJson(response, 200, {
+      conversation: {
+        id: conversation.id,
+        subject: conversation.subject,
+        counterpart: { ...counterpart, role: counterpart.role.toLowerCase() },
+        messages: messages.map((item) => ({
+          id: item.id,
+          body: item.body,
+          createdAt: item.createdAt,
+          senderId: item.senderId,
+          sender: { ...item.sender, role: item.sender.role.toLowerCase() },
+        })),
+      },
+    });
+    return;
+  }
+
   if (method === "GET" && path === "/api/profile") {
     const session = await getSession(request);
     if (!session) {

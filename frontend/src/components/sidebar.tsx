@@ -24,6 +24,7 @@ const navByRole: Record<Role, { label: string; href: string }[]> = {
     { label: "Users and roles", href: "/admin/users" },
     { label: "Programmes", href: "/admin/programmes" },
     { label: "Settings", href: "/admin/settings" },
+    { label: "Messages", href: "/messages" },
     { label: "My profile", href: "/profile" },
   ],
 };

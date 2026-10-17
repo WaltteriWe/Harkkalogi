@@ -284,8 +284,8 @@ export default function TeacherReviewQueuePage() {
 
       {/* Review Modal */}
       {selectedReport && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="card w-full max-w-lg p-6 shadow-xl animate-fade-in flex flex-col gap-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-2 sm:p-4">
+          <div className="card flex max-h-[calc(100dvh-1rem)] w-full max-w-lg flex-col gap-4 overflow-y-auto p-4 shadow-xl animate-fade-in sm:max-h-[calc(100dvh-2rem)] sm:p-6">
             <div>
               <div className="flex items-center justify-between gap-2">
                 <span className="pill-neutral text-xs">{selectedReport.programme}</span>
@@ -299,7 +299,7 @@ export default function TeacherReviewQueuePage() {
               </p>
             </div>
 
-            <div className="bg-surface-muted p-4 rounded-control text-xs text-ink leading-relaxed border border-border">
+            <div className="max-h-[45dvh] overflow-y-auto overscroll-contain break-words rounded-control border border-border bg-surface-muted p-4 text-xs leading-relaxed text-ink">
               <p className="font-semibold mb-1 text-ink">Student&apos;s report:</p>
               <p className="whitespace-pre-wrap">{selectedReport.content}</p>
               <p className="mt-3 text-ink-muted">
