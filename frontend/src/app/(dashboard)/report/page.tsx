@@ -35,6 +35,7 @@ function ReportEditor() {
     type: "success" | "error" | "info";
     message: string;
   } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const showNotification = (
     type: "success" | "error" | "info",
@@ -51,15 +52,20 @@ function ReportEditor() {
     showNotification("info", "Draft saved successfully.");
   };
 
-  const handleSubmit = () => {
-    const res = submitReport();
-    if (res.success) {
-      showNotification(
-        "success",
-        "Report submitted successfully! Your teacher has been notified."
-      );
-    } else {
-      showNotification("error", res.message || "Please complete all requirements.");
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    try {
+      const res = await submitReport();
+      if (res.success) {
+        showNotification(
+          "success",
+          "Report submitted successfully! It is now available in your supervising teacher's review queue."
+        );
+      } else {
+        showNotification("error", res.message || "Please complete all requirements.");
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -314,10 +320,15 @@ function ReportEditor() {
                 </button>
                 <button
                   type="button"
-                  onClick={handleSubmit}
+                  onClick={() => void handleSubmit()}
+                  disabled={isSubmitting}
                   className="btn-primary"
                 >
-                  {isSubmitted ? "Update submission" : "Submit for review"}
+                  {isSubmitting
+                    ? "Submitting…"
+                    : isSubmitted
+                      ? "Update submission"
+                      : "Submit for review"}
                 </button>
               </div>
             ) : (

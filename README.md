@@ -32,7 +32,11 @@ The frontend calls the separate Node.js API in `backend` (default:
    `backend/.env.example`. PostgreSQL is exposed on `localhost:55432` by
    default. From the repository root, start it with
    `docker compose --env-file .\backend\.env up -d`, or run `npm run db:up`
-   from `backend`.
+   from `backend`. This also starts MinIO for private profile photo storage.
+   Set `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD` to unique local values, and
+   set `S3_ACCESS_KEY` and `S3_SECRET_KEY` to those same values. MinIO's S3
+   endpoint is `http://localhost:19000`; its local console is at
+   `http://localhost:19001`.
 2. Run `npm run generate` and `npm run migrate` from `backend` to generate the
    Prisma client and apply database migrations.
 3. Create the first administrator with `INITIAL_ADMIN_EMAIL`,
@@ -48,6 +52,11 @@ receives a one-time temporary password and must change it at first sign-in.
 Forgotten passwords are reset by an administrator, who shares a new temporary
 password with the user. Passwords are stored as scrypt hashes and sessions are
 stored server-side; the browser receives only an HttpOnly session cookie.
+
+Users can update their phone number, address, biography, study programme, and
+profile photo from **My profile**. Profile photos are limited to PNG, JPEG, or
+WebP files up to 5 MB and are stored privately in MinIO; only the signed-in
+account can view its photo.
 
 To assign a student to a teacher, open **Admin → Users and roles** and choose
 the teacher in that student's **Supervising teacher** selector. The assignment

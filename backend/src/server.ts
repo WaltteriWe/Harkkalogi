@@ -15,10 +15,17 @@ import {
   minimumPasswordLength,
   verifyPassword,
 } from "./passwords";
+import {
+  deleteProfileImage,
+  ensureProfileImageBucket,
+  getProfileImage,
+  saveProfileImage,
+} from "./profileStorage";
 
 const port = Number(process.env.PORT ?? 4000);
 const sessionCookieName = "harkkalogi_session";
 const sessionLifetimeMs = 7 * 24 * 60 * 60 * 1000;
+const maxProfileImageBytes = 5 * 1024 * 1024;
 const frontendOrigin = process.env.FRONTEND_ORIGIN ?? "http://localhost:3000";
 const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 
@@ -28,6 +35,7 @@ type SessionUser = {
   name: string;
   title: string;
   role: "STUDENT" | "TEACHER" | "ADMIN";
+  supervisingTeacherId: number | null;
   passwordChangeRequired: boolean;
 };
 
@@ -96,7 +104,6 @@ async function readJson(request: IncomingMessage): Promise<Record<string, unknow
     }
     chunks.push(buffer);
   }
-
   try {
     const body: unknown = JSON.parse(Buffer.concat(chunks).toString("utf8"));
     if (!body || typeof body !== "object" || Array.isArray(body)) {
@@ -106,6 +113,52 @@ async function readJson(request: IncomingMessage): Promise<Record<string, unknow
   } catch {
     throw Object.assign(new Error("A valid JSON object is required."), { statusCode: 400 });
   }
+}
+
+async function readRawBody(
+  request: IncomingMessage,
+  maxBytes: number
+): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let totalBytes = 0;
+
+  for await (const chunk of request) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    totalBytes += buffer.length;
+    if (totalBytes > maxBytes) {
+      throw Object.assign(new Error("The uploaded image must be 5 MB or smaller."), {
+        statusCode: 413,
+      });
+    }
+    chunks.push(buffer);
+  }
+
+  return Buffer.concat(chunks);
+}
+
+function detectImageType(body: Buffer): string | null {
+  if (
+    body.length >= 8 &&
+    body.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+  ) {
+    return "image/png";
+  }
+  if (
+    body.length >= 3 &&
+    body[0] === 0xff &&
+    body[1] === 0xd8 &&
+    body[2] === 0xff
+  ) {
+    return "image/jpeg";
+  }
+  if (
+    body.length >= 12 &&
+    body.toString("ascii", 0, 4) === "RIFF" &&
+    body.toString("ascii", 8, 12) === "WEBP"
+  ) {
+    return "image/webp";
+  }
+  return null;
 }
 
 async function createSession(userId: number) {
@@ -265,6 +318,317 @@ async function handleRequest(request: IncomingMessage, response: ServerResponse)
     return;
   }
 
+  if (method === "GET" && path === "/api/profile") {
+    const session = await getSession(request);
+    if (!session) {
+      sendJson(response, 401, { error: "Sign in to continue." });
+      return;
+    }
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: {
+        phoneNumber: true,
+        address: true,
+        bio: true,
+        studyProgramme: true,
+        profilePhotoUpdatedAt: true,
+      },
+    });
+    if (!user) {
+      sendJson(response, 404, { error: "User account was not found." });
+      return;
+    }
+    sendJson(response, 200, {
+      profile: {
+        phoneNumber: user.phoneNumber ?? "",
+        address: user.address ?? "",
+        bio: user.bio ?? "",
+        studyProgramme: user.studyProgramme ?? "",
+        profilePhotoUrl: user.profilePhotoUpdatedAt
+          ? `/api/profile/photo?v=${user.profilePhotoUpdatedAt.getTime()}`
+          : null,
+      },
+    });
+    return;
+  }
+
+  if (method === "POST" && path === "/api/profile") {
+    const session = await getSession(request);
+    if (!session) {
+      sendJson(response, 401, { error: "Sign in to continue." });
+      return;
+    }
+    const body = await readJson(request);
+    const fields = [
+      ["phoneNumber", 30],
+      ["address", 300],
+      ["bio", 500],
+      ["studyProgramme", 160],
+    ] as const;
+    const values: {
+      phoneNumber?: string | null;
+      address?: string | null;
+      bio?: string | null;
+      studyProgramme?: string | null;
+    } = {};
+
+    for (const [field, maxLength] of fields) {
+      const value = body[field];
+      if (value !== undefined && typeof value !== "string") {
+        sendJson(response, 400, { error: `${field} must be text.` });
+        return;
+      }
+      const trimmed = typeof value === "string" ? value.trim() : "";
+      if (trimmed.length > maxLength) {
+        sendJson(response, 400, {
+          error: `${field} must be ${maxLength} characters or fewer.`,
+        });
+        return;
+      }
+      values[field] = trimmed || null;
+    }
+
+    const profile = await prisma.user.update({
+      where: { id: session.user.id },
+      data: values,
+      select: {
+        phoneNumber: true,
+        address: true,
+        bio: true,
+        studyProgramme: true,
+        profilePhotoUpdatedAt: true,
+      },
+    });
+    sendJson(response, 200, {
+      profile: {
+        phoneNumber: profile.phoneNumber ?? "",
+        address: profile.address ?? "",
+        bio: profile.bio ?? "",
+        studyProgramme: profile.studyProgramme ?? "",
+        profilePhotoUrl: profile.profilePhotoUpdatedAt
+          ? `/api/profile/photo?v=${profile.profilePhotoUpdatedAt.getTime()}`
+          : null,
+      },
+    });
+    return;
+  }
+
+  if (method === "GET" && path === "/api/profile/photo") {
+    const session = await getSession(request);
+    if (!session) {
+      sendJson(response, 401, { error: "Sign in to continue." });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { profilePhotoUpdatedAt: true },
+    });
+    if (!user?.profilePhotoUpdatedAt) {
+      sendJson(response, 404, { error: "No profile image has been uploaded." });
+      return;
+    }
+
+    try {
+      const image = await getProfileImage(session.user.id);
+      if (!image.Body) {
+        sendJson(response, 404, { error: "Profile image was not found." });
+        return;
+      }
+      response.writeHead(200, {
+        "Content-Type": image.ContentType ?? "application/octet-stream",
+        "Content-Length": image.ContentLength,
+        "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff",
+      });
+      for await (const chunk of image.Body as AsyncIterable<Uint8Array>) {
+        response.write(chunk);
+      }
+      response.end();
+    } catch (error) {
+      const statusCode =
+        error && typeof error === "object" && "$metadata" in error &&
+        error.$metadata && typeof error.$metadata === "object" &&
+        "httpStatusCode" in error.$metadata
+          ? error.$metadata.httpStatusCode
+          : undefined;
+      if (statusCode === 404) {
+        sendJson(response, 404, { error: "Profile image was not found." });
+        return;
+      }
+      throw error;
+    }
+    return;
+  }
+
+  if (method === "POST" && path === "/api/profile/photo") {
+    const session = await getSession(request);
+    if (!session) {
+      sendJson(response, 401, { error: "Sign in to continue." });
+      return;
+    }
+
+    const body = await readRawBody(request, maxProfileImageBytes);
+    const contentType = detectImageType(body);
+    if (!contentType || request.headers["content-type"]?.split(";")[0] !== contentType) {
+      sendJson(response, 400, {
+        error: "Upload a valid PNG, JPEG, or WebP image.",
+      });
+      return;
+    }
+
+    await saveProfileImage(session.user.id, body, contentType);
+    const profilePhotoUpdatedAt = new Date();
+    await prisma.user.update({
+      where: { id: session.user.id },
+      data: { profilePhotoUpdatedAt },
+    });
+    sendJson(response, 200, {
+      profilePhotoUrl: `/api/profile/photo?v=${profilePhotoUpdatedAt.getTime()}`,
+    });
+    return;
+  }
+
+  if (method === "POST" && path === "/api/profile/photo/delete") {
+    const session = await getSession(request);
+    if (!session) {
+      sendJson(response, 401, { error: "Sign in to continue." });
+      return;
+    }
+
+    await deleteProfileImage(session.user.id);
+    await prisma.user.update({
+      where: { id: session.user.id },
+      data: { profilePhotoUpdatedAt: null },
+    });
+    sendJson(response, 200, { success: true });
+    return;
+  }
+
+  if (method === "POST" && path === "/api/student/reports") {
+    const session = await getSession(request);
+    if (!session) {
+      sendJson(response, 401, { error: "Sign in to continue." });
+      return;
+    }
+    if (session.user.role !== "STUDENT") {
+      sendJson(response, 403, { error: "Student access is required." });
+      return;
+    }
+    if (!session.user.supervisingTeacherId) {
+      sendJson(response, 409, {
+        error: "Your supervising teacher has not been assigned yet. Ask an administrator to assign one before submitting.",
+      });
+      return;
+    }
+
+    const body = await readJson(request);
+    const title = typeof body.title === "string" ? body.title.trim() : "";
+    const company = typeof body.company === "string" ? body.company.trim() : "";
+    const period = typeof body.period === "string" ? body.period.trim() : "";
+    const content =
+      typeof body.tasksAndLearning === "string" ? body.tasksAndLearning.trim() : "";
+    const clientId = typeof body.clientId === "string" ? body.clientId.trim() : "";
+    const totalHours = Number(body.totalHours);
+
+    if (!title || title.length > 200) {
+      sendJson(response, 400, { error: "Report title is required and must be at most 200 characters." });
+      return;
+    }
+    if (!company || company.length > 200) {
+      sendJson(response, 400, { error: "Company is required and must be at most 200 characters." });
+      return;
+    }
+    if (!period || period.length > 160) {
+      sendJson(response, 400, { error: "Internship period is required and must be at most 160 characters." });
+      return;
+    }
+    if (!content || content.length > 20_000) {
+      sendJson(response, 400, { error: "Report details are required and must be at most 20,000 characters." });
+      return;
+    }
+    if (!Number.isSafeInteger(totalHours) || totalHours <= 0 || totalHours > 100_000) {
+      sendJson(response, 400, { error: "Total hours must be a positive whole number." });
+      return;
+    }
+    if (!clientId || clientId.length > 80) {
+      sendJson(response, 400, { error: "The report identifier is invalid." });
+      return;
+    }
+
+    const teacher = await prisma.user.findUnique({
+      where: { id: session.user.supervisingTeacherId },
+      select: { id: true, role: true },
+    });
+    if (!teacher || teacher.role !== "TEACHER") {
+      sendJson(response, 409, {
+        error: "Your supervising teacher is unavailable. Ask an administrator to check the assignment.",
+      });
+      return;
+    }
+
+    const savedReport = await prisma.$transaction(async (transaction) => {
+      let internship = await transaction.internship.findFirst({
+        where: { studentId: session.user.id, company },
+        orderBy: { startDate: "desc" },
+      });
+      if (internship) {
+        internship = await transaction.internship.update({
+          where: { id: internship.id },
+          data: { teacherId: teacher.id },
+        });
+      } else {
+        internship = await transaction.internship.create({
+          data: {
+            company,
+            startDate: new Date(),
+            studentId: session.user.id,
+            teacherId: teacher.id,
+          },
+        });
+      }
+
+      const existing = await transaction.report.findFirst({
+        where: { internshipId: internship.id, clientId },
+        include: {
+          reviews: { orderBy: { createdAt: "desc" }, take: 1 },
+        },
+      });
+      if (
+        existing?.status === "REVIEWED" &&
+        existing.reviews[0]?.decision === "APPROVED"
+      ) {
+        throw Object.assign(new Error("An approved report cannot be changed."), {
+          statusCode: 409,
+        });
+      }
+
+      const data = {
+        title,
+        content,
+        period,
+        totalHours,
+        status: "SUBMITTED" as const,
+        submittedAt: new Date(),
+      };
+      return existing
+        ? transaction.report.update({ where: { id: existing.id }, data })
+        : transaction.report.create({
+            data: { ...data, internshipId: internship.id, clientId },
+          });
+    });
+
+    sendJson(response, 200, {
+      report: {
+        id: savedReport.id,
+        clientId: savedReport.clientId,
+        status: savedReport.status.toLowerCase(),
+        submittedAt: savedReport.submittedAt,
+      },
+    });
+    return;
+  }
+
   if (method === "GET" && path === "/api/teacher/students") {
     const session = await getSession(request);
     if (!session) {
@@ -312,6 +676,132 @@ async function handleRequest(request: IncomingMessage, response: ServerResponse)
         };
       }),
     });
+    return;
+  }
+
+  if (method === "GET" && path === "/api/teacher/reports") {
+    const session = await getSession(request);
+    if (!session) {
+      sendJson(response, 401, { error: "Sign in to continue." });
+      return;
+    }
+    if (session.user.role !== "TEACHER") {
+      sendJson(response, 403, { error: "Teacher access is required." });
+      return;
+    }
+
+    const reports = await prisma.report.findMany({
+      where: {
+        status: { in: ["SUBMITTED", "REVIEWED"] },
+        internship: {
+          student: { supervisingTeacherId: session.user.id },
+        },
+      },
+      orderBy: [{ submittedAt: "desc" }, { updatedAt: "desc" }],
+      include: {
+        internship: {
+          include: {
+            student: {
+              select: { id: true, name: true, title: true, studyProgramme: true },
+            },
+          },
+        },
+        reviews: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          include: { teacher: { select: { name: true } } },
+        },
+      },
+    });
+
+    sendJson(response, 200, {
+      reports: reports.map((report) => {
+        const review = report.reviews[0];
+        const status =
+          report.status === "SUBMITTED"
+            ? "needs_review"
+            : review?.decision === "APPROVED"
+              ? "approved"
+              : review?.decision === "NEEDS_CHANGES"
+                ? "changes_requested"
+                : "reviewed";
+        return {
+          id: String(report.id),
+          student: report.internship.student.name,
+          programme:
+            report.internship.student.studyProgramme ||
+            report.internship.student.title,
+          title: report.title,
+          company: report.internship.company,
+          period: report.period,
+          submittedDate: report.submittedAt?.toLocaleDateString("fi-FI") ?? "",
+          hours: report.totalHours,
+          content: report.content,
+          status,
+          feedback: review?.comment ?? null,
+        };
+      }),
+    });
+    return;
+  }
+
+  const reviewReportMatch = path.match(/^\/api\/teacher\/reports\/(\d+)\/review$/);
+  if (method === "PATCH" && reviewReportMatch) {
+    const session = await getSession(request);
+    if (!session) {
+      sendJson(response, 401, { error: "Sign in to continue." });
+      return;
+    }
+    if (session.user.role !== "TEACHER") {
+      sendJson(response, 403, { error: "Teacher access is required." });
+      return;
+    }
+
+    const reportId = Number(reviewReportMatch[1]);
+    const body = await readJson(request);
+    const decision = body.decision;
+    const comment = typeof body.comment === "string" ? body.comment.trim() : "";
+    if (decision !== "APPROVED" && decision !== "NEEDS_CHANGES") {
+      sendJson(response, 400, { error: "Choose an approval or request changes decision." });
+      return;
+    }
+    if (comment.length > 3000) {
+      sendJson(response, 400, { error: "Feedback must be 3,000 characters or fewer." });
+      return;
+    }
+    if (decision === "NEEDS_CHANGES" && !comment) {
+      sendJson(response, 400, { error: "Add feedback before requesting changes." });
+      return;
+    }
+
+    const report = await prisma.report.findUnique({
+      where: { id: reportId },
+      include: { internship: { include: { student: true } } },
+    });
+    if (!report || report.internship.student.supervisingTeacherId !== session.user.id) {
+      sendJson(response, 404, { error: "Report was not found for your assigned students." });
+      return;
+    }
+    if (report.status !== "SUBMITTED") {
+      sendJson(response, 409, { error: "This report is no longer waiting for review." });
+      return;
+    }
+
+    await prisma.$transaction([
+      prisma.review.create({
+        data: {
+          reportId,
+          teacherId: session.user.id,
+          decision,
+          comment: comment || "Report approved.",
+        },
+      }),
+      prisma.report.update({
+        where: { id: reportId },
+        data: { status: "REVIEWED" },
+      }),
+    ]);
+    sendJson(response, 200, { success: true });
     return;
   }
 
@@ -605,9 +1095,16 @@ const server = createServer((request, response) => {
   });
 });
 
-server.listen(port, () => {
-  console.log(`Harkkalogi backend listening on port ${port}`);
-});
+void ensureProfileImageBucket()
+  .then(() => {
+    server.listen(port, () => {
+      console.log(`Harkkalogi backend listening on port ${port}`);
+    });
+  })
+  .catch((error: unknown) => {
+    console.error("Could not initialize profile image storage:", error);
+    process.exitCode = 1;
+  });
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {

@@ -203,7 +203,7 @@ export interface ReportContextType {
   removeAttachment: (id: string) => void;
   toggleSupervisorFeedback: () => void;
   saveDraft: () => void;
-  submitReport: () => { success: boolean; message?: string };
+  submitReport: () => Promise<{ success: boolean; message?: string }>;
   resetReport: () => void;
   wordCount: number;
   checklist: {
@@ -216,6 +216,7 @@ export interface ReportContextType {
 }
 
 const ReportContext = createContext<ReportContextType | undefined>(undefined);
+const backendUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 function formatCurrentTime(): string {
   const now = new Date();
@@ -395,7 +396,10 @@ export function ReportProvider({ children }: { children: ReactNode }) {
     activeReport.supervisorFeedbackRequested,
   ]);
 
-  const submitReport = useCallback((): { success: boolean; message?: string } => {
+  const submitReport = useCallback(async (): Promise<{
+    success: boolean;
+    message?: string;
+  }> => {
     if (!checklist.canSubmit) {
       return {
         success: false,
@@ -403,6 +407,37 @@ export function ReportProvider({ children }: { children: ReactNode }) {
           "Please ensure workplace details are filled, a certificate is attached, and tasks describe at least 300 words.",
       };
     }
+    let response: Response;
+    try {
+      response = await fetch(`${backendUrl}/api/student/reports`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: activeReport.id,
+          title: activeReport.title,
+          company: activeReport.company,
+          period: activeReport.period,
+          totalHours: activeReport.totalHours,
+          tasksAndLearning: activeReport.tasksAndLearning,
+        }),
+      });
+    } catch {
+      return {
+        success: false,
+        message: "Could not reach the server. Your report has not been submitted.",
+      };
+    }
+    const result: unknown = await response.json().catch(() => null);
+    if (!response.ok) {
+      const message =
+        result && typeof result === "object" && "error" in result &&
+        typeof result.error === "string"
+          ? result.error
+          : "Your report could not be submitted.";
+      return { success: false, message };
+    }
+
     const now = new Date();
     const formattedDate = `${now.getDate()}.${now.getMonth() + 1}.${now.getFullYear()}`;
     const time = formatCurrentTime();
@@ -421,7 +456,7 @@ export function ReportProvider({ children }: { children: ReactNode }) {
       ),
     }));
     return { success: true };
-  }, [checklist.canSubmit]);
+  }, [activeReport, checklist.canSubmit]);
 
   const resetReport = useCallback(() => {
     setStore(DEFAULT_STORE);

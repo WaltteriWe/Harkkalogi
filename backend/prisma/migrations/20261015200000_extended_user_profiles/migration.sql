@@ -1,0 +1,6 @@
+ALTER TABLE "User"
+ADD COLUMN "phoneNumber" VARCHAR(30),
+ADD COLUMN "address" VARCHAR(300),
+ADD COLUMN "bio" VARCHAR(500),
+ADD COLUMN "studyProgramme" VARCHAR(160),
+ADD COLUMN "profilePhotoUpdatedAt" TIMESTAMP(3);

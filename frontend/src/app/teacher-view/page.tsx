@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
-import { useReport } from "@/context/ReportContext";
+import React, { useEffect, useState } from "react";
 
 interface QueueItem {
   id: string;
@@ -9,94 +8,148 @@ interface QueueItem {
   programme: string;
   title: string;
   company: string;
+  period: string;
   submittedDate: string;
   hours: number;
-  status: "needs_review" | "approved" | "changes_requested";
-  feedback?: string;
+  content: string;
+  status: "needs_review" | "approved" | "changes_requested" | "reviewed";
+  feedback?: string | null;
 }
 
-const INITIAL_QUEUE_ITEMS: QueueItem[] = [
-  {
-    id: "q-1",
-    student: "Aino Korhonen",
-    programme: "Information Technology",
-    title: "Final internship report",
-    company: "Nordic Pixel Oy",
-    submittedDate: "1.10.2026",
-    hours: 800,
-    status: "needs_review",
-  },
-  {
-    id: "q-2",
-    student: "Linnea Berg",
-    programme: "Media Engineering",
-    title: "Final internship report",
-    company: "Reaktor",
-    submittedDate: "18.9.2026",
-    hours: 800,
-    status: "needs_review",
-  },
-  {
-    id: "q-3",
-    student: "Eetu Mäkinen",
-    programme: "Information Technology",
-    title: "Mid-term progress report",
-    company: "Futurice",
-    submittedDate: "23.9.2026",
-    hours: 400,
-    status: "needs_review",
-  },
-  {
-    id: "q-4",
-    student: "Sofia Mäkinen",
-    programme: "Information Technology",
-    title: "Final internship report",
-    company: "KONE Oyj",
-    submittedDate: "6.10.2026",
-    hours: 800,
-    status: "approved",
-    feedback: "Approved by Mikko Laine: Learning reflection and hours verified.",
-  },
-];
+const backendUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+
+function isQueueItem(value: unknown): value is QueueItem {
+  if (!value || typeof value !== "object") return false;
+  const report = value as Record<string, unknown>;
+  return (
+    typeof report.id === "string" &&
+    typeof report.student === "string" &&
+    typeof report.programme === "string" &&
+    typeof report.title === "string" &&
+    typeof report.company === "string" &&
+    typeof report.period === "string" &&
+    typeof report.submittedDate === "string" &&
+    typeof report.hours === "number" &&
+    typeof report.content === "string" &&
+    ["needs_review", "approved", "changes_requested", "reviewed"].includes(
+      String(report.status)
+    ) &&
+    (report.feedback === undefined ||
+      report.feedback === null ||
+      typeof report.feedback === "string")
+  );
+}
 
 export default function TeacherReviewQueuePage() {
-  const { reports } = useReport();
-  const [queue, setQueue] = useState<QueueItem[]>(INITIAL_QUEUE_ITEMS);
+  const [queue, setQueue] = useState<QueueItem[]>([]);
   const [selectedReport, setSelectedReport] = useState<QueueItem | null>(null);
   const [feedbackText, setFeedbackText] = useState("");
   const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSavingReview, setIsSavingReview] = useState(false);
 
-  // Check if Aino submitted her final report from the ReportContext
-  const ainoFinal = reports.find((r) => r.id === "report-final");
-  const ainoStatus = ainoFinal?.status === "submitted" ? "needs_review" : "needs_review";
+  useEffect(() => {
+    let active = true;
+    void fetch(`${backendUrl}/api/teacher/reports`, { credentials: "include" })
+      .then(async (response) => {
+        const body: unknown = await response.json().catch(() => null);
+        if (!response.ok) {
+          const message =
+            body && typeof body === "object" && "error" in body &&
+            typeof body.error === "string"
+              ? body.error
+              : "Could not load the review queue.";
+          throw new Error(message);
+        }
+        if (
+          !body || typeof body !== "object" || !("reports" in body) ||
+          !Array.isArray(body.reports) ||
+          !body.reports.every(isQueueItem)
+        ) {
+          throw new Error("The server returned an invalid review queue.");
+        }
+        if (active) setQueue(body.reports);
+      })
+      .catch((loadError: unknown) => {
+        if (active) {
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : "Could not load the review queue."
+          );
+        }
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
 
-  const handleApprove = (id: string, studentName: string) => {
-    setQueue((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, status: "approved" } : item
-      )
-    );
-    setActionNotice(`Report approved for ${studentName}.`);
-    setTimeout(() => setActionNotice(null), 3000);
-    setSelectedReport(null);
-  };
+    return () => {
+      active = false;
+    };
+  }, []);
 
-  const handleRequestChanges = (id: string, studentName: string) => {
-    setQueue((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              status: "changes_requested",
-              feedback: feedbackText || "Please expand on project reflections.",
-            }
-          : item
-      )
-    );
-    setActionNotice(`Revision requested from ${studentName}.`);
-    setTimeout(() => setActionNotice(null), 3000);
-    setSelectedReport(null);
-    setFeedbackText("");
+  const handleReview = async (
+    decision: "APPROVED" | "NEEDS_CHANGES",
+    item: QueueItem
+  ) => {
+    setError(null);
+    setIsSavingReview(true);
+    try {
+      const response = await fetch(
+        `${backendUrl}/api/teacher/reports/${item.id}/review`,
+        {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            decision,
+            comment:
+              feedbackText.trim() ||
+              (decision === "NEEDS_CHANGES"
+                ? "Please expand on your report and resubmit it."
+                : ""),
+          }),
+        }
+      );
+      const body: unknown = await response.json().catch(() => null);
+      if (!response.ok) {
+        const message =
+          body && typeof body === "object" && "error" in body &&
+          typeof body.error === "string"
+            ? body.error
+            : "Could not save the review.";
+        throw new Error(message);
+      }
+      setQueue((previous) =>
+        previous.map((report) =>
+          report.id === item.id
+            ? {
+                ...report,
+                status:
+                  decision === "APPROVED" ? "approved" : "changes_requested",
+                feedback: feedbackText.trim() || null,
+              }
+            : report
+        )
+      );
+      setActionNotice(
+        decision === "APPROVED"
+          ? `Report approved for ${item.student}.`
+          : `Revision requested from ${item.student}.`
+      );
+      setTimeout(() => setActionNotice(null), 3000);
+      setSelectedReport(null);
+      setFeedbackText("");
+    } catch (reviewError) {
+      setError(
+        reviewError instanceof Error
+          ? reviewError.message
+          : "Could not save the review."
+      );
+    } finally {
+      setIsSavingReview(false);
+    }
   };
 
   const getStatusBadge = (status: QueueItem["status"]) => {
@@ -107,6 +160,8 @@ export default function TeacherReviewQueuePage() {
         return <span className="pill-success">Approved</span>;
       case "changes_requested":
         return <span className="pill-danger">Changes requested</span>;
+      case "reviewed":
+        return <span className="pill-neutral">Reviewed</span>;
     }
   };
 
@@ -129,6 +184,12 @@ export default function TeacherReviewQueuePage() {
           </div>
         )}
       </header>
+
+      {error && (
+        <p role="alert" className="card border-danger text-sm text-danger">
+          {error}
+        </p>
+      )}
 
       {/* Stats summary */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -167,7 +228,19 @@ export default function TeacherReviewQueuePage() {
               </tr>
             </thead>
             <tbody>
-              {queue.map((item) => (
+              {isLoading ? (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-sm text-ink-muted">
+                    Loading reports…
+                  </td>
+                </tr>
+              ) : queue.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-sm text-ink-muted">
+                    No reports have been submitted by your assigned students yet.
+                  </td>
+                </tr>
+              ) : queue.map((item) => (
                 <tr key={item.id} className="hover:bg-surface-muted/30 transition-colors">
                   <td>
                     <p className="font-bold text-ink">{item.student}</p>
@@ -190,7 +263,7 @@ export default function TeacherReviewQueuePage() {
                   </td>
 
                   <td>
-                    {getStatusBadge(item.id === "q-1" ? ainoStatus : item.status)}
+                    {getStatusBadge(item.status)}
                   </td>
 
                   <td className="text-right">
@@ -199,7 +272,7 @@ export default function TeacherReviewQueuePage() {
                       onClick={() => setSelectedReport(item)}
                       className="text-xs font-semibold text-brand hover:text-brand-hover hover:underline"
                     >
-                      Review report →
+                      {item.status === "needs_review" ? "Review report →" : "View report →"}
                     </button>
                   </td>
                 </tr>
@@ -227,11 +300,15 @@ export default function TeacherReviewQueuePage() {
             </div>
 
             <div className="bg-surface-muted p-4 rounded-control text-xs text-ink leading-relaxed border border-border">
-              <p className="font-semibold mb-1 text-ink">Report Excerpt:</p>
-              &quot;Completed full 800 hours working on web interface components, automated tests, and design tokens. Actively participated in agile sprint planning and code reviews.&quot;
+              <p className="font-semibold mb-1 text-ink">Student&apos;s report:</p>
+              <p className="whitespace-pre-wrap">{selectedReport.content}</p>
+              <p className="mt-3 text-ink-muted">
+                Period: {selectedReport.period} · {selectedReport.hours} hours
+              </p>
             </div>
 
-            <div>
+            {selectedReport.status === "needs_review" ? (
+              <div>
               <label htmlFor="feedback-comment" className="field-label">Teacher Assessment / Feedback</label>
               <textarea
                 id="feedback-comment"
@@ -241,33 +318,48 @@ export default function TeacherReviewQueuePage() {
                 onChange={(e) => setFeedbackText(e.target.value)}
                 className="input text-xs py-2"
               />
-            </div>
+              </div>
+            ) : selectedReport.feedback ? (
+              <div className="rounded-control border border-border bg-surface-muted p-3 text-sm">
+                <p className="font-semibold text-ink">Teacher feedback</p>
+                <p className="mt-1 whitespace-pre-wrap text-ink-muted">
+                  {selectedReport.feedback}
+                </p>
+              </div>
+            ) : null}
 
             <div className="flex items-center justify-between gap-2 pt-3 border-t border-border">
               <button
                 type="button"
                 onClick={() => setSelectedReport(null)}
+                disabled={isSavingReview}
                 className="btn-secondary text-xs py-2 px-3"
               >
                 Cancel
               </button>
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleRequestChanges(selectedReport.id, selectedReport.student)}
-                  className="text-xs font-semibold text-danger border border-danger/30 hover:bg-danger-soft px-3 py-2 rounded-control transition-colors"
-                >
-                  Request changes
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleApprove(selectedReport.id, selectedReport.student)}
-                  className="btn-primary text-xs py-2 px-4"
-                >
-                  Approve report
-                </button>
-              </div>
+              {selectedReport.status === "needs_review" && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void handleReview("NEEDS_CHANGES", selectedReport)
+                    }
+                    disabled={isSavingReview}
+                    className="text-xs font-semibold text-danger border border-danger/30 hover:bg-danger-soft px-3 py-2 rounded-control transition-colors"
+                  >
+                    {isSavingReview ? "Saving…" : "Request changes"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleReview("APPROVED", selectedReport)}
+                    disabled={isSavingReview}
+                    className="btn-primary text-xs py-2 px-4"
+                  >
+                    {isSavingReview ? "Saving…" : "Approve report"}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

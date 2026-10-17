@@ -38,6 +38,11 @@ model User {
   email                  String   @unique
   name                   String
   title                  String   @default("")
+  phoneNumber            String?  @db.VarChar(30)
+  address                String?  @db.VarChar(300)
+  bio                    String?  @db.VarChar(500)
+  studyProgramme         String?  @db.VarChar(160)
+  profilePhotoUpdatedAt  DateTime?
   role                   Role
   passwordHash           String?
   passwordChangeRequired Boolean  @default(false)
@@ -92,8 +97,11 @@ model Internship {
 
 model Report {
   id          Int          @id @default(autoincrement())
+  clientId    String?      @db.VarChar(80)
   title       String
   content     String
+  period      String       @default("") @db.VarChar(160)
+  totalHours  Int          @default(0)
   status      ReportStatus @default(DRAFT)
   submittedAt DateTime?
   createdAt   DateTime     @default(now())
@@ -104,6 +112,7 @@ model Report {
 
   reviews Review[]
 
+  @@unique([internshipId, clientId])
   @@index([internshipId])
   @@index([status])
 }
