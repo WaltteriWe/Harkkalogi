@@ -22,3 +22,50 @@ Students report on internships they have completed; teachers review and approve 
 | Database | Prisma                  |
 | Hosting  | TBD                     |
 
+## Docker Setup
+
+The application is containerized with 3 services:
+- **`postgres`**: PostgreSQL 16 database (`postgres:16-alpine`)
+- **`backend`**: Express API server (`node:22-bookworm-slim`) on port `4000`
+- **`frontend`**: Next.js web application (`node:22-bookworm-slim`) on port `3000`
+
+### 1. Development (with Hot-Reloading)
+
+Start all services in development mode with live code reloading:
+
+```bash
+docker compose up --build
+```
+
+- Web UI: http://localhost:3000
+- API: http://localhost:4000/api
+- Database migrations and test user seed data are automatically applied on startup.
+
+Default test accounts (password: `password123`):
+- Student: `aino.korhonen@metropolia.fi`
+- Teacher: `mikko.laine@metropolia.fi`
+- Admin: `admin@metropolia.fi`
+
+To stop containers:
+```bash
+docker compose down
+```
+
+### 2. Production Build
+
+Start the production-ready standalone build:
+
+```bash
+docker compose -f docker-compose.prod.yml up --build -d
+```
+
+### 3. Database Utility Commands
+
+Run manual Prisma migrations or studio:
+```bash
+# Run Prisma studio in backend container
+docker compose exec backend npx prisma studio
+
+# Run seed manually
+docker compose exec backend npm run seed
+```
