@@ -1,10 +1,10 @@
-import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { prisma } from "../../lib/prisma.ts";
 import { env } from "../../config/env.ts";
 import { AppError } from "../../middlewares/error.middleware.ts";
 import { toUserResponse, UserResponse } from "../../types/index.ts";
 import { LoginInput } from "./auth.schemas.ts";
+import { verifyPassword } from "../../lib/password.ts";
 
 export interface LoginResult {
   token: string;
@@ -21,7 +21,7 @@ export class AuthService {
       throw new AppError("Invalid email or password", 401);
     }
 
-    const isMatch = await bcrypt.compare(input.password, user.passwordHash);
+    const isMatch = await verifyPassword(input.password, user.passwordHash);
     if (!isMatch) {
       throw new AppError("Invalid email or password", 401);
     }
@@ -33,7 +33,7 @@ export class AuthService {
         role: user.role,
       },
       env.JWT_SECRET,
-      { expiresIn: "7d" }
+      { expiresIn: env.JWT_EXPIRES_IN as any }
     );
 
     return {

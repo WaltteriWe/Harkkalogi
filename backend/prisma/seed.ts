@@ -1,7 +1,7 @@
 import "dotenv/config";
-import bcrypt from "bcryptjs";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient, Role, StudyType } from "../generated/prisma/client.ts";
+import { hashPassword } from "../src/lib/password.ts";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -15,7 +15,7 @@ async function main() {
   console.log("Seeding database...");
 
   const defaultPassword = "password123";
-  const passwordHash = await bcrypt.hash(defaultPassword, 10);
+  const passwordHash = await hashPassword(defaultPassword);
 
   const defaultUsers = [
     {
