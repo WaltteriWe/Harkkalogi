@@ -15,7 +15,7 @@ FROM deps AS development
 ENV NODE_ENV=development
 COPY . .
 RUN DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder" npx prisma generate
-RUN chmod +x ./docker-entrypoint.sh
+RUN sed -i 's/\r$//' ./docker-entrypoint.sh && chmod +x ./docker-entrypoint.sh
 EXPOSE 4000
 ENTRYPOINT ["./docker-entrypoint.sh"]
 CMD ["npm", "run", "dev"]
@@ -29,7 +29,7 @@ RUN DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholde
 FROM base AS runner
 ENV NODE_ENV=production
 COPY --from=builder /app /app
-RUN chmod +x /app/docker-entrypoint.sh
+RUN sed -i 's/\r$//' /app/docker-entrypoint.sh && chmod +x /app/docker-entrypoint.sh
 EXPOSE 4000
 ENTRYPOINT ["./docker-entrypoint.sh"]
 CMD ["npm", "start"]
