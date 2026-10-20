@@ -26,6 +26,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
       target: development
+    image: harkkalogi-backend
     container_name: harkkalogi-backend
     restart: unless-stopped
     ports:
@@ -46,6 +47,10 @@ services:
       - /app/node_modules
 
   studio:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
     image: harkkalogi-backend
     container_name: harkkalogi-studio
     restart: unless-stopped
@@ -56,8 +61,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      backend:
-        condition: service_started
     entrypoint: []
     command: ["node", "./scripts/studio-proxy.js"]
     volumes:
