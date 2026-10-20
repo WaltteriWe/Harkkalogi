@@ -1,5 +1,6 @@
 import React from "react";
 import Sidebar from "@/components/sidebar";
+import ProtectedRoute from "@/components/protectedRoute";
 
 export default function AdminLayout({
   children,
@@ -7,10 +8,12 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="app-shell">
-      <Sidebar role="admin" />
-      <main className="main flex flex-col gap-6">{children}</main>
-    </div>
+    <ProtectedRoute allowedRoles={["admin"]}>
+      <div className="app-shell">
+        <Sidebar role="admin" />
+        <main className="main flex flex-col gap-6">{children}</main>
+      </div>
+    </ProtectedRoute>
   );
 }
 

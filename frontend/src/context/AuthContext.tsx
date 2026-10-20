@@ -15,6 +15,34 @@ import {
   TOKEN_STORAGE_KEY,
   USER_STORAGE_KEY,
 } from "@/lib/api";
+import {
+  setAuthCookie,
+  clearAuthCookie,
+  sanitizeRedirectPath,
+} from "@/lib/auth-cookie";
+
+export function isRouteAllowedForRole(role: Role, path: string): boolean {
+  if (role === "student") {
+    return (
+      path === "/" ||
+      path === "/reports" ||
+      path.startsWith("/report") ||
+      path.startsWith("/documents") ||
+      path.startsWith("/messages")
+    );
+  }
+  if (role === "teacher") {
+    return (
+      path === "/teacher-view" ||
+      path.startsWith("/teacher-view/") ||
+      path.startsWith("/messages")
+    );
+  }
+  if (role === "admin") {
+    return path === "/admin" || path.startsWith("/admin/");
+  }
+  return false;
+}
 
 export interface User {
   id: number;
@@ -212,14 +240,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .catch(() => {
         if (isMounted) {
           // Stored token is invalid or expired
+          clearAuthCookie();
           setStore({ user: null, token: null, isLoading: false });
+          router.push("/login");
         }
       });
 
     return () => {
       isMounted = false;
     };
-  }, [store.token]);
+  }, [store.token, router]);
 
   const login = useCallback(
     async (email: string, password = "password123"): Promise<boolean> => {
@@ -230,13 +260,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ email: trimmedEmail, password }),
       });
 
+      setAuthCookie(res.token);
       setStore({
         user: res.user,
         token: res.token,
         isLoading: false,
       });
 
-      router.push(res.user.landingPath);
+      // Check if there was a return URL in the query params
+      let destination = res.user.landingPath;
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const fromParam = sanitizeRedirectPath(params.get("from"));
+        if (fromParam && isRouteAllowedForRole(res.user.role, fromParam)) {
+          destination = fromParam;
+        }
+      }
+
+      router.push(destination);
       return true;
     },
     [router]
@@ -256,6 +297,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     // Fire-and-forget backend logout
     apiFetch("/auth/logout", { method: "POST" }).catch(() => {});
+    clearAuthCookie();
     setStore({ user: null, token: null, isLoading: false });
     router.push("/login");
   }, [router]);

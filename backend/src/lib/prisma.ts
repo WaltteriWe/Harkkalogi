@@ -9,7 +9,20 @@ declare global {
   var prismaGlobal: PrismaClient | undefined;
 }
 
-export const prisma = globalThis.prismaGlobal ?? new PrismaClient({ adapter });
+export const prisma =
+  globalThis.prismaGlobal ??
+  new PrismaClient({
+    adapter,
+    log:
+      env.NODE_ENV === "development"
+        ? [
+            { emit: "stdout", level: "query" },
+            { emit: "stdout", level: "info" },
+            { emit: "stdout", level: "warn" },
+            { emit: "stdout", level: "error" },
+          ]
+        : [{ emit: "stdout", level: "error" }],
+  });
 
 if (env.NODE_ENV !== "production") {
   globalThis.prismaGlobal = prisma;

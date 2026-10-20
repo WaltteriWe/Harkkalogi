@@ -37,7 +37,7 @@ export default function Sidebar({ role, userName }: SidebarProps = {}) {
   const { user, logout } = useAuth();
 
   const activeRole: Role = role ?? user?.role ?? "student";
-  const activeUserName = userName ?? user?.name ?? "Aino Korhonen";
+  const activeUserName = userName ?? user?.name ?? "User";
 
   return (
     <aside className="sidebar">

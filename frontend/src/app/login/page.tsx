@@ -1,8 +1,10 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Role } from "@/components/sidebar";
 import { useLoginForm } from "@/hooks/useLoginForm";
+import { useAuth } from "@/context/AuthContext";
 
 function getRoleBadge(role: Role) {
   switch (role) {
@@ -17,6 +19,15 @@ function getRoleBadge(role: Role) {
 }
 
 export default function LoginPage() {
+  const router = useRouter();
+  const { isLoading, isAuthenticated, user } = useAuth();
+
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && user) {
+      router.replace(user.landingPath || "/");
+    }
+  }, [isLoading, isAuthenticated, user, router]);
+
   const {
     email,
     setEmail,

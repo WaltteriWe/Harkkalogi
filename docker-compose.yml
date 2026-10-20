@@ -14,6 +14,7 @@ services:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    command: ["postgres", "-c", "log_statement=all"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-myuser} -d $${POSTGRES_DB:-mydb}"]
       interval: 5s
@@ -44,6 +45,25 @@ services:
       - ./backend/prisma:/app/prisma
       - /app/node_modules
 
+  studio:
+    image: harkkalogi-backend
+    container_name: harkkalogi-studio
+    restart: unless-stopped
+    ports:
+      - "5555:5555"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-myuser}:${POSTGRES_PASSWORD:-mypassword}@postgres:5432/${POSTGRES_DB:-mydb}?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    entrypoint: []
+    command: ["node", "./scripts/studio-proxy.js"]
+    volumes:
+      - ./backend/prisma:/app/prisma
+      - ./backend/scripts:/app/scripts
+
   frontend:
     build:
       context: ./frontend
@@ -58,6 +78,7 @@ services:
       PORT: 3000
       HOSTNAME: 0.0.0.0
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000/api}
+      JWT_SECRET: ${JWT_SECRET:-super-secret-jwt-key-for-development-harkkalogi}
     depends_on:
       - backend
     volumes:

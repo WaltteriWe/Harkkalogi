@@ -20,6 +20,18 @@ export function createApp(): Express {
   );
   app.use(express.json());
 
+  // Development request logger
+  if (env.NODE_ENV === "development") {
+    app.use((req, res, next) => {
+      const start = Date.now();
+      res.on("finish", () => {
+        const duration = Date.now() - start;
+        console.log(`[HTTP] ${req.method} ${req.originalUrl} ${res.statusCode} (${duration}ms)`);
+      });
+      next();
+    });
+  }
+
   // Healthcheck endpoint
   app.get("/health", (_req, res) => {
     res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
