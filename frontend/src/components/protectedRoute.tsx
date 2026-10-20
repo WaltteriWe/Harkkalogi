@@ -3,25 +3,25 @@
 import React, { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { Role } from "@/components/sidebar";
+import { Role } from "@/lib/auth-routes";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   allowedRoles?: Role[];
-  allowedPathsForOtherRoles?: {
-    roles: Role[];
-    paths: string[];
-  }[];
 }
 
 export default function ProtectedRoute({
   children,
   allowedRoles,
-  allowedPathsForOtherRoles,
 }: ProtectedRouteProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, isAuthenticated, isLoading } = useAuth();
+
+  const roleAllowed =
+    !allowedRoles ||
+    allowedRoles.length === 0 ||
+    (user !== null && allowedRoles.includes(user.role));
 
   useEffect(() => {
     if (isLoading) return;
@@ -33,29 +33,10 @@ export default function ProtectedRoute({
       return;
     }
 
-    if (allowedRoles && allowedRoles.includes(user.role)) {
-      return;
+    if (!roleAllowed) {
+      router.replace(user.landingPath || "/");
     }
-
-    if (allowedPathsForOtherRoles) {
-      const isAllowedException = allowedPathsForOtherRoles.some(
-        (rule) =>
-          rule.roles.includes(user.role) &&
-          rule.paths.some((p) => pathname === p || pathname.startsWith(`${p}/`))
-      );
-      if (isAllowedException) return;
-    }
-
-    router.replace(user.landingPath || "/");
-  }, [
-    isLoading,
-    isAuthenticated,
-    user,
-    pathname,
-    router,
-    allowedRoles,
-    allowedPathsForOtherRoles,
-  ]);
+  }, [isLoading, isAuthenticated, user, pathname, router, roleAllowed]);
 
   if (isLoading) {
     return (
@@ -68,21 +49,9 @@ export default function ProtectedRoute({
     );
   }
 
-  if (!isAuthenticated || !user) {
-    return null;
-  }
-
-  const roleAllowed = allowedRoles?.includes(user.role);
-  const pathExceptionAllowed = allowedPathsForOtherRoles?.some(
-    (rule) =>
-      rule.roles.includes(user.role) &&
-      rule.paths.some((p) => pathname === p || pathname.startsWith(`${p}/`))
-  );
-
-  if (!roleAllowed && !pathExceptionAllowed) {
+  if (!isAuthenticated || !user || !roleAllowed) {
     return null;
   }
 
   return <>{children}</>;
 }
-

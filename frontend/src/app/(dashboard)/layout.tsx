@@ -8,10 +8,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <ProtectedRoute
-      allowedRoles={["student"]}
-      allowedPathsForOtherRoles={[{ roles: ["teacher"], paths: ["/messages"] }]}
-    >
+    <ProtectedRoute allowedRoles={["student"]}>
       <div className="app-shell">
         <Sidebar />
         <main className="main flex flex-col gap-6">{children}</main>
@@ -19,4 +16,3 @@ export default function DashboardLayout({
     </ProtectedRoute>
   );
 }
-

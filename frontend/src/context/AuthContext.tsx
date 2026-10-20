@@ -9,7 +9,11 @@ import React, {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import { Role } from "@/components/sidebar";
+import {
+  type Role,
+  isRouteAllowedForRole,
+  getLandingPath,
+} from "@/lib/auth-routes";
 import {
   apiFetch,
   TOKEN_STORAGE_KEY,
@@ -21,28 +25,7 @@ import {
   sanitizeRedirectPath,
 } from "@/lib/auth-cookie";
 
-export function isRouteAllowedForRole(role: Role, path: string): boolean {
-  if (role === "student") {
-    return (
-      path === "/" ||
-      path === "/reports" ||
-      path.startsWith("/report") ||
-      path.startsWith("/documents") ||
-      path.startsWith("/messages")
-    );
-  }
-  if (role === "teacher") {
-    return (
-      path === "/teacher-view" ||
-      path.startsWith("/teacher-view/") ||
-      path.startsWith("/messages")
-    );
-  }
-  if (role === "admin") {
-    return path === "/admin" || path.startsWith("/admin/");
-  }
-  return false;
-}
+export { isRouteAllowedForRole, type Role };
 
 export interface User {
   id: number;
@@ -268,7 +251,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       // Check if there was a return URL in the query params
-      let destination = res.user.landingPath;
+      let destination = res.user.landingPath || getLandingPath(res.user.role);
       if (typeof window !== "undefined") {
         const params = new URLSearchParams(window.location.search);
         const fromParam = sanitizeRedirectPath(params.get("from"));

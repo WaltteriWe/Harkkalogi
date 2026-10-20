@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { TOKEN_COOKIE_NAME } from "./lib/auth-cookie";
+import { getLandingPath, isRouteAllowedForRole } from "./lib/auth-routes";
 
 interface JwtPayload {
   userId: number;
@@ -69,41 +70,6 @@ async function verifyJwt(token: string, secret: string): Promise<JwtPayload | nu
   }
 }
 
-function getLandingPath(role: string): string {
-  switch (role) {
-    case "teacher":
-      return "/teacher-view";
-    case "admin":
-      return "/admin";
-    case "student":
-    default:
-      return "/";
-  }
-}
-
-function isPathAllowedForRole(role: string, path: string): boolean {
-  if (role === "student") {
-    return (
-      path === "/" ||
-      path === "/reports" ||
-      path.startsWith("/report") ||
-      path.startsWith("/documents") ||
-      path.startsWith("/messages")
-    );
-  }
-  if (role === "teacher") {
-    return (
-      path === "/teacher-view" ||
-      path.startsWith("/teacher-view/") ||
-      path.startsWith("/messages")
-    );
-  }
-  if (role === "admin") {
-    return path === "/admin" || path.startsWith("/admin/");
-  }
-  return false;
-}
-
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isLoginPage = pathname === "/login" || pathname === "/logIn";
@@ -139,7 +105,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // Role-Based Access Control check
-  if (!isPathAllowedForRole(clientRole, pathname)) {
+  if (!isRouteAllowedForRole(clientRole, pathname)) {
     return NextResponse.redirect(new URL(landingPath, request.url));
   }
 

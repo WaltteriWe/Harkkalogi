@@ -4,8 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
+import { Role } from "@/lib/auth-routes";
 
-export type Role = "student" | "teacher" | "admin";
+export type { Role };
 
 const navByRole: Record<Role, { label: string; href: string }[]> = {
   student: [
