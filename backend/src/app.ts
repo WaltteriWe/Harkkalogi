@@ -13,11 +13,11 @@ export function createApp(): Express {
 
   // Global middlewares
   app.use(
-    cors({
-      origin: env.CORS_ORIGIN,
-      credentials: true,
-    })
-  );
+  cors({
+    origin: env.CORS_ORIGIN.replace(/\/+$/, ""),
+    credentials: true,
+  })
+);
   app.use(express.json());
 
   // Development request logger

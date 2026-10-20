@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient, Role, StudyType } from "../generated/prisma/client.ts";
+import { PrismaClient } from "../generated/prisma/client.ts";
+import { Role, StudyType } from "../generated/prisma/enums.ts";
 import { hashPassword } from "../src/lib/password.ts";
 
 const connectionString = process.env.DATABASE_URL;
@@ -71,4 +72,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-
