@@ -4,6 +4,7 @@ import React, { useState, useEffect, Suspense, type ChangeEvent } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useReport } from "@/context/ReportContext";
+import DateInput from "@/components/dateInput";
 
 function ReportEditor() {
   const searchParams = useSearchParams();
@@ -181,7 +182,7 @@ function ReportEditor() {
                 <h2 className="text-base font-semibold text-ink">
                   1. Workplace and period
                 </h2>
-                <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <div>
                     <label className="field-label" htmlFor="company-input">
                       Company
@@ -197,20 +198,23 @@ function ReportEditor() {
                     />
                   </div>
 
-                  <div>
-                    <label className="field-label" htmlFor="period-input">
-                      Period
-                    </label>
-                    <input
-                      id="period-input"
-                      type="text"
-                      className="input"
-                      value={report.period}
-                      onChange={(e) => updateField("period", e.target.value)}
-                      placeholder="e.g. 1.6.2026 – 30.11.2026"
-                      disabled={isApproved}
-                    />
-                  </div>
+                  <DateInput
+                    id="start-date-input"
+                    label="Start date"
+                    value={report.startDate}
+                    onChange={(value) => updateField("startDate", value)}
+                    max={report.endDate}
+                    disabled={isApproved}
+                  />
+
+                  <DateInput
+                    id="end-date-input"
+                    label="End date"
+                    value={report.endDate}
+                    onChange={(value) => updateField("endDate", value)}
+                    min={report.startDate}
+                    disabled={isApproved}
+                  />
 
                   <div>
                     <label className="field-label" htmlFor="hours-input">

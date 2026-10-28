@@ -7,6 +7,7 @@ import {
   MIN_DESCRIPTION_WORDS,
   MIN_LEARNING_GOALS,
 } from "@/context/PlanContext";
+import DateInput from "@/components/dateInput";
 
 function ChecklistIcon({ done }: { done: boolean }) {
   return done ? (
@@ -229,34 +230,23 @@ export default function PlanningPage() {
                 2. Period and hours
               </h2>
               <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <div>
-                  <label className="field-label" htmlFor="plan-start-input">
-                    Start date
-                  </label>
-                  <input
-                    id="plan-start-input"
-                    type="date"
-                    className="input"
-                    value={plan.startDate}
-                    onChange={(e) => updateField("startDate", e.target.value)}
-                    disabled={isApproved}
-                  />
-                </div>
+                <DateInput
+                  id="plan-start-input"
+                  label="Start date"
+                  value={plan.startDate}
+                  onChange={(value) => updateField("startDate", value)}
+                  max={plan.endDate}
+                  disabled={isApproved}
+                />
 
-                <div>
-                  <label className="field-label" htmlFor="plan-end-input">
-                    End date
-                  </label>
-                  <input
-                    id="plan-end-input"
-                    type="date"
-                    className="input"
-                    value={plan.endDate}
-                    min={plan.startDate || undefined}
-                    onChange={(e) => updateField("endDate", e.target.value)}
-                    disabled={isApproved}
-                  />
-                </div>
+                <DateInput
+                  id="plan-end-input"
+                  label="End date"
+                  value={plan.endDate}
+                  onChange={(value) => updateField("endDate", value)}
+                  min={plan.startDate}
+                  disabled={isApproved}
+                />
 
                 <div>
                   <label className="field-label" htmlFor="plan-hours-input">
