@@ -3,6 +3,7 @@
 import React, { useMemo } from "react";
 import ReportingProgress from "@/components/reportingProgress";
 import { useReport } from "@/context/ReportContext";
+import { formatPeriod } from "@/lib/dates";
 
 const contacts = [
   { name: "Laura Nieminen", role: "Workplace supervisor" },
@@ -35,7 +36,7 @@ export default function Home() {
           <p className="meta mt-2 text-base">
             Practical training · Frontend developer at{" "}
             {report.company || "Nordic Pixel Oy"} ·{" "}
-            {report.period || "1.6.–30.11.2026"}
+            {formatPeriod(report.startDate, report.endDate) || "1.6.–30.11.2026"}
           </p>
         </div>
       </header>

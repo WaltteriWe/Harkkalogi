@@ -4,6 +4,7 @@ import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useReport } from "@/context/ReportContext";
+import { formatPeriod } from "@/lib/dates";
 
 export default function ReportsPage() {
   const router = useRouter();
@@ -179,7 +180,7 @@ export default function ReportsPage() {
 
                       <td>
                         <span className="text-sm text-ink tabular">
-                          {item.period}
+                          {formatPeriod(item.startDate, item.endDate)}
                         </span>
                       </td>
 
@@ -272,7 +273,7 @@ export default function ReportsPage() {
                   </div>
 
                   <p className="meta text-xs tabular mt-1">
-                    Period: {old.period} · {old.totalHours} hours
+                    Period: {formatPeriod(old.startDate, old.endDate)} · {old.totalHours} hours
                   </p>
 
                   {old.teacherFeedback && (
