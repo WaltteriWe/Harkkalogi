@@ -1,0 +1,6 @@
+# Force Linux line endings (LF) for shell scripts across all platforms
+*.sh text eol=lf
+
+# Auto-detect text files and normalize line endings
+* text=auto
+

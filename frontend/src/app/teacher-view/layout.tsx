@@ -1,5 +1,6 @@
 import React from "react";
 import Sidebar from "@/components/sidebar";
+import ProtectedRoute from "@/components/protectedRoute";
 
 export default function TeacherLayout({
   children,
@@ -7,10 +8,12 @@ export default function TeacherLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="app-shell">
-      <Sidebar role="teacher" />
-      <main className="main flex flex-col gap-6">{children}</main>
-    </div>
+    <ProtectedRoute allowedRoles={["teacher"]}>
+      <div className="app-shell">
+        <Sidebar role="teacher" />
+        <main className="main flex flex-col gap-6">{children}</main>
+      </div>
+    </ProtectedRoute>
   );
 }
 

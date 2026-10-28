@@ -4,12 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
+import { Role } from "@/lib/auth-routes";
 
-export type Role = "student" | "teacher" | "admin";
+export type { Role };
 
 const navByRole: Record<Role, { label: string; href: string }[]> = {
   student: [
     { label: "Overview", href: "/" },
+    { label: "Internship plan", href: "/planning" },
     { label: "Reports", href: "/reports" },
     { label: "Documents", href: "/documents" },
     { label: "Messages", href: "/messages" },
@@ -37,12 +39,18 @@ export default function Sidebar({ role, userName }: SidebarProps = {}) {
   const { user, logout } = useAuth();
 
   const activeRole: Role = role ?? user?.role ?? "student";
-  const activeUserName = userName ?? user?.name ?? "Aino Korhonen";
+  const activeUserName = userName ?? user?.name ?? "User";
 
   return (
     <aside className="sidebar">
       <div className="mb-6 px-3 shrink-0">
-        <Image src="/harkkalogi-logo-reversed.svg" alt="Harkkalogi" width={160} height={33} priority />
+        <Image
+          src="/harkkalogi-logo-reversed.svg"
+          alt="Harkkalogi"
+          width={160}
+          height={33}
+          priority
+        />
         <p className="text-sm text-ink-inverse-muted">Internship reporting</p>
       </div>
 
@@ -50,7 +58,8 @@ export default function Sidebar({ role, userName }: SidebarProps = {}) {
         {navByRole[activeRole]?.map(({ label, href }) => {
           const isCurrent =
             pathname === href ||
-            (href === "/reports" && (pathname === "/report" || pathname.startsWith("/report/")));
+            (href === "/reports" &&
+              (pathname === "/report" || pathname.startsWith("/report/")));
 
           return (
             <Link

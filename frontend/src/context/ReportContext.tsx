@@ -20,7 +20,8 @@ export interface ReportState {
   id: string;
   title: string;
   company: string;
-  period: string;
+  startDate: string; // yyyy-mm-dd
+  endDate: string; // yyyy-mm-dd
   totalHours: number | string;
   tasksAndLearning: string;
   attachments: Attachment[];
@@ -43,7 +44,8 @@ const DEFAULT_REPORTS: ReportState[] = [
     id: "report-final",
     title: "Final internship report",
     company: "Nordic Pixel Oy",
-    period: "1.6.2026 – 30.11.2026",
+    startDate: "2026-06-01",
+    endDate: "2026-11-30",
     totalHours: 800,
     tasksAndLearning:
       "I built UI components for the customer portal in React and took part in weekly sprint reviews. The biggest thing I learned was how to collaborate effectively with senior developers and navigate a large existing codebase. I also gained practical experience with TypeScript, automated testing, and designing accessible component libraries following strict design tokens. Working directly on user-facing features taught me to prioritize performance and clean code architecture. Looking forward to applying these skills in upcoming projects and continuing to deepen my practical knowledge.",
@@ -65,7 +67,8 @@ const DEFAULT_REPORTS: ReportState[] = [
     id: "report-midterm",
     title: "Mid-term progress report",
     company: "Nordic Pixel Oy",
-    period: "1.6.2026 – 15.8.2026",
+    startDate: "2026-06-01",
+    endDate: "2026-08-15",
     totalHours: 400,
     tasksAndLearning:
       "During the first half of my practical training at Nordic Pixel Oy, I focused on frontend bug fixes, design system components, and unit tests. I participated in daily standups and sprint planning. My supervisor Laura Nieminen conducted the mid-term review with positive feedback on code quality and initiative.",
@@ -86,24 +89,6 @@ const DEFAULT_REPORTS: ReportState[] = [
     teacherFeedback:
       "Approved by Mikko Laine: Excellent progress in transitioning to the development team. The learning reflections align well with the degree program goals.",
   },
-  {
-    id: "report-orientation",
-    title: "Orientation & plan report",
-    company: "Nordic Pixel Oy",
-    period: "1.6.2026 – 30.6.2026",
-    totalHours: 160,
-    tasksAndLearning:
-      "First month orientation report. Completed onboarding, repository setup, access permissions, and initial introduction to Metropolia internship goals with company mentor.",
-    attachments: [],
-    supervisorFeedbackRequested: true,
-    status: "approved",
-    lastSavedAt: "30.6.2026",
-    submittedAt: "30.6.2026",
-    approvedAt: "2.7.2026",
-    createdAt: "1.6.2026",
-    teacherFeedback:
-      "Approved by Mikko Laine: Orientation objectives and initial tasks fulfilled.",
-  },
 ];
 
 const DEFAULT_STORE: ReportStoreState = {
@@ -111,7 +96,7 @@ const DEFAULT_STORE: ReportStoreState = {
   reports: DEFAULT_REPORTS,
 };
 
-const STORAGE_KEY = "harkkalogi_report_store_v2";
+const STORAGE_KEY = "harkkalogi_report_store_v4";
 
 let currentStore: ReportStoreState = DEFAULT_STORE;
 let isLoadedFromStorage = false;
@@ -257,7 +242,8 @@ export function ReportProvider({ children }: { children: ReactNode }) {
       id: newId,
       title: title?.trim() || "New report",
       company: "Nordic Pixel Oy",
-      period: "1.6.2026 – 30.11.2026",
+      startDate: "2026-06-01",
+      endDate: "2026-11-30",
       totalHours: 800,
       tasksAndLearning: "",
       attachments: [],
@@ -371,7 +357,8 @@ export function ReportProvider({ children }: { children: ReactNode }) {
   const checklist = useMemo(() => {
     const isWorkplaceFilled = Boolean(
       activeReport.company.trim() &&
-        activeReport.period.trim() &&
+        activeReport.startDate &&
+        activeReport.endDate &&
         String(activeReport.totalHours).trim()
     );
     const hasWorkCertificate = activeReport.attachments.length > 0;
@@ -388,7 +375,8 @@ export function ReportProvider({ children }: { children: ReactNode }) {
     };
   }, [
     activeReport.company,
-    activeReport.period,
+    activeReport.startDate,
+    activeReport.endDate,
     activeReport.totalHours,
     activeReport.attachments.length,
     wordCount,
