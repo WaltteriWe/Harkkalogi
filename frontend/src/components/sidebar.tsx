@@ -11,6 +11,7 @@ export type { Role };
 const navByRole: Record<Role, { label: string; href: string }[]> = {
   student: [
     { label: "Overview", href: "/" },
+    { label: "Internship plan", href: "/planning" },
     { label: "Reports", href: "/reports" },
     { label: "Documents", href: "/documents" },
     { label: "Messages", href: "/messages" },

@@ -24,6 +24,7 @@ export function isRouteAllowedForRole(role: Role | string, path: string): boolea
     return (
       path === "/" ||
       path === "/reports" ||
+      path.startsWith("/planning") ||
       path.startsWith("/report") ||
       path.startsWith("/documents") ||
       path.startsWith("/messages")

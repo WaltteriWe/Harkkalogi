@@ -31,6 +31,7 @@ describe("auth-routes: isRouteAllowedForRole", () => {
     it("allows student to access student overview, reports, documents, and messages", () => {
       assert.equal(isRouteAllowedForRole("student", "/"), true);
       assert.equal(isRouteAllowedForRole("student", "/reports"), true);
+      assert.equal(isRouteAllowedForRole("student", "/planning"), true);
       assert.equal(isRouteAllowedForRole("student", "/report"), true);
       assert.equal(isRouteAllowedForRole("student", "/report/123"), true);
       assert.equal(isRouteAllowedForRole("student", "/documents"), true);
@@ -57,6 +58,7 @@ describe("auth-routes: isRouteAllowedForRole", () => {
     it("prevents teacher from accessing student dashboard and admin views", () => {
       assert.equal(isRouteAllowedForRole("teacher", "/"), false);
       assert.equal(isRouteAllowedForRole("teacher", "/reports"), false);
+      assert.equal(isRouteAllowedForRole("teacher", "/planning"), false);
       assert.equal(isRouteAllowedForRole("teacher", "/report/123"), false);
       assert.equal(isRouteAllowedForRole("teacher", "/documents"), false);
       assert.equal(isRouteAllowedForRole("teacher", "/admin"), false);
