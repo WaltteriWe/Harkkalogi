@@ -38,41 +38,6 @@ export interface User {
   landingPath: string;
 }
 
-export interface UserPreset {
-  id: number;
-  name: string;
-  email: string;
-  role: Role;
-  defaultPassword?: string;
-}
-
-export const SEED_USERS: UserPreset[] = [
-  {
-    id: 1,
-    name: "Aino Korhonen",
-    email: "aino.korhonen@metropolia.fi",
-    role: "student",
-    defaultPassword: "password123",
-  },
-  {
-    id: 2,
-    name: "Mikko Laine",
-    email: "mikko.laine@metropolia.fi",
-    role: "teacher",
-    defaultPassword: "password123",
-  },
-  {
-    id: 3,
-    name: "Admin User",
-    email: "admin@metropolia.fi",
-    role: "admin",
-    defaultPassword: "password123",
-  },
-];
-
-// Retain alias for any components relying on preset listings
-export const MOCK_USER_LIST = SEED_USERS;
-
 interface AuthStoreState {
   user: User | null;
   token: string | null;
@@ -189,8 +154,7 @@ interface AuthContextType {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password?: string) => Promise<boolean>;
-  quickLogin: (role: Role) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
 }
 
@@ -235,7 +199,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [store.token, router]);
 
   const login = useCallback(
-    async (email: string, password = "password123"): Promise<boolean> => {
+    async (email: string, password: string): Promise<boolean> => {
       const trimmedEmail = email.trim().toLowerCase();
 
       const res = await apiFetch<{ token: string; user: User }>("/auth/login", {
@@ -266,17 +230,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [router]
   );
 
-  const quickLogin = useCallback(
-    async (role: Role): Promise<boolean> => {
-      const targetUser = SEED_USERS.find((u) => u.role === role);
-      if (targetUser) {
-        return login(targetUser.email, targetUser.defaultPassword || "password123");
-      }
-      return false;
-    },
-    [login]
-  );
-
   const logout = useCallback(() => {
     // Fire-and-forget backend logout
     apiFetch("/auth/logout", { method: "POST" }).catch(() => {});
@@ -291,7 +244,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAuthenticated: Boolean(store.token && store.user),
     isLoading: store.isLoading,
     login,
-    quickLogin,
     logout,
   };
 
