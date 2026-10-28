@@ -11,6 +11,7 @@
     "db:up": "docker compose -f ../docker-compose.yml up -d",
     "db:down": "docker compose -f ../docker-compose.yml down",
     "dev": "tsx watch src/index.ts",
+    "test": "tsx --test src/**/__tests__/*.test.ts",
     "build": "tsc",
     "start": "tsx src/index.ts",
     "seed": "tsx prisma/seed.ts"
