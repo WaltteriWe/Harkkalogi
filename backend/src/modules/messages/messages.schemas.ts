@@ -9,6 +9,13 @@ export const getInboxSchema = z.object({
     .optional(),
 });
 
+export const noEmojiRegex = /^((?!\p{Extended_Pictographic}).)*$/su;
+
+export const noEmojiSchema = z.string().regex(
+  noEmojiRegex,
+  "Emojis are not allowed"
+);
+
 export const createMessageSchema = z.object({
   body: z.object({
     recipientId: z.number().int().positive("A valid recipient is required"),
@@ -16,11 +23,13 @@ export const createMessageSchema = z.object({
       .string()
       .trim()
       .min(1, "Subject cannot be empty")
-      .max(200, "Subject must be under 200 characters"),
+      .max(200, "Subject must be under 200 characters")
+      .pipe(noEmojiSchema),
     body: z
       .string()
       .trim()
-      .min(1, "Message content cannot be empty"),
+      .min(1, "Message content cannot be empty")
+      .pipe(noEmojiSchema),
     internshipId: z.number().int().positive().optional(),
   }),
 });
@@ -30,7 +39,11 @@ export const replyMessageSchema = z.object({
     id: z.string().regex(/^\d+$/, "Thread ID must be numeric").transform(Number),
   }),
   body: z.object({
-    body: z.string().trim().min(1, "Reply content cannot be empty"),
+    body: z
+      .string()
+      .trim()
+      .min(1, "Reply content cannot be empty")
+      .pipe(noEmojiSchema),
   }),
 });
 

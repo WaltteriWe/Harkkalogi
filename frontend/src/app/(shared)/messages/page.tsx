@@ -8,6 +8,7 @@ import InboxMessageCard, {
 import ComposeMessageModal from "@/components/composeMessageModal";
 import { useMessages } from "@/hooks/useMessages";
 import { useAuth } from "@/context/AuthContext";
+import { containsEmoji } from "@/lib/messages-validation";
 
 export default function MessagesPage() {
   const { user } = useAuth();
@@ -103,6 +104,11 @@ export default function MessagesPage() {
   const handleSendReply = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!replyText.trim() || !selectedThread || !canSendMessage) return;
+
+    if (containsEmoji(replyText)) {
+      setReplyError("Emojis are not allowed.");
+      return;
+    }
 
     setReplyError(null);
     try {

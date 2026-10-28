@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import type { ApiRecipient, ApiUserSummary } from "@/types/messages";
+import { containsEmoji } from "@/lib/messages-validation";
 
 export interface ComposeMessageModalProps {
   isOpen: boolean;
@@ -57,6 +58,16 @@ export default function ComposeMessageModal({
     e.preventDefault();
     if (!effectiveRecipientId || !subject.trim() || !body.trim()) {
       setError("Please fill in all required fields.");
+      return;
+    }
+
+    if (containsEmoji(subject)) {
+      setError("Emojis are not allowed in subject.");
+      return;
+    }
+
+    if (containsEmoji(body)) {
+      setError("Emojis are not allowed in message content.");
       return;
     }
 

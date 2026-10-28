@@ -4,6 +4,7 @@ import {
   createMessageSchema,
   replyMessageSchema,
   threadParamSchema,
+  noEmojiSchema,
 } from "../messages.schemas.ts";
 
 describe("messages.schemas: createMessageSchema", () => {
@@ -48,6 +49,59 @@ describe("messages.schemas: createMessageSchema", () => {
       await createMessageSchema.parseAsync(input);
     });
   });
+
+  it("rejects subject containing emojis", async () => {
+    const input = {
+      body: {
+        recipientId: 2,
+        subject: "Internship question 😀",
+        body: "Hello, I have a question.",
+      },
+    };
+
+    await assert.rejects(
+      async () => {
+        await createMessageSchema.parseAsync(input);
+      },
+      (err: any) => {
+        assert.equal(err.issues[0].message, "Emojis are not allowed");
+        return true;
+      }
+    );
+  });
+
+  it("rejects message body containing emojis", async () => {
+    const input = {
+      body: {
+        recipientId: 2,
+        subject: "Internship question",
+        body: "Hello, look at this 🚀",
+      },
+    };
+
+    await assert.rejects(
+      async () => {
+        await createMessageSchema.parseAsync(input);
+      },
+      (err: any) => {
+        assert.equal(err.issues[0].message, "Emojis are not allowed");
+        return true;
+      }
+    );
+  });
+
+  it("accepts valid multiline message body without emojis", async () => {
+    const input = {
+      body: {
+        recipientId: 2,
+        subject: "Question about hours",
+        body: "Hello teacher,\n\nHere is paragraph two.\n\nBest regards,\nJuho",
+      },
+    };
+
+    const parsed = await createMessageSchema.parseAsync(input);
+    assert.equal(parsed.body.body, input.body.body);
+  });
 });
 
 describe("messages.schemas: replyMessageSchema", () => {
@@ -60,6 +114,33 @@ describe("messages.schemas: replyMessageSchema", () => {
     const parsed = await replyMessageSchema.parseAsync(input);
     assert.equal(parsed.params.id, 42);
     assert.equal(parsed.body.body, "Here is my reply.");
+  });
+
+  it("rejects reply body containing emojis", async () => {
+    const input = {
+      params: { id: "42" },
+      body: { body: "Sounds great! 👍" },
+    };
+
+    await assert.rejects(
+      async () => {
+        await replyMessageSchema.parseAsync(input);
+      },
+      (err: any) => {
+        assert.equal(err.issues[0].message, "Emojis are not allowed");
+        return true;
+      }
+    );
+  });
+
+  it("accepts multiline reply without emojis", async () => {
+    const input = {
+      params: { id: "42" },
+      body: { body: "Thanks for the feedback!\nI will update the document.\n\n- Juho" },
+    };
+
+    const parsed = await replyMessageSchema.parseAsync(input);
+    assert.equal(parsed.body.body, input.body.body);
   });
 
   it("rejects non-numeric thread id", async () => {
@@ -79,6 +160,28 @@ describe("messages.schemas: threadParamSchema", () => {
     const input = { params: { id: "10" } };
     const parsed = await threadParamSchema.parseAsync(input);
     assert.equal(parsed.params.id, 10);
+  });
+});
+
+describe("messages.schemas: noEmojiSchema", () => {
+  it("accepts text without emojis", async () => {
+    assert.equal(await noEmojiSchema.parseAsync("Hello world! Ääkköset 123?"), "Hello world! Ääkköset 123?");
+    assert.equal(await noEmojiSchema.parseAsync("Multi\nline\ntext"), "Multi\nline\ntext");
+  });
+
+  it("rejects various emoji characters", async () => {
+    const emojis = ["😀", "🚀", "❤️", "👍", "🎉", "Text with 🔥 fire"];
+    for (const emoji of emojis) {
+      await assert.rejects(
+        async () => {
+          await noEmojiSchema.parseAsync(emoji);
+        },
+        (err: any) => {
+          assert.equal(err.issues[0].message, "Emojis are not allowed");
+          return true;
+        }
+      );
+    }
   });
 });
 

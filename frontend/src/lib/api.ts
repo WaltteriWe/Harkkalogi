@@ -42,10 +42,20 @@ export async function apiFetch<T = unknown>(
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
-    const errorMessage =
-      (data && typeof data === "object" && "error" in data && typeof data.error === "string")
-        ? data.error
-        : `Request failed with status ${response.status}`;
+    let errorMessage = `Request failed with status ${response.status}`;
+    if (data && typeof data === "object") {
+      const details = (data as { details?: Array<{ message?: string }> }).details;
+      if (Array.isArray(details) && details.length > 0) {
+        const detailMessages = details.map((d) => d.message).filter(Boolean);
+        if (detailMessages.length > 0) {
+          errorMessage = detailMessages.join(". ");
+        } else if ("error" in data && typeof (data as { error: unknown }).error === "string") {
+          errorMessage = (data as { error: string }).error;
+        }
+      } else if ("error" in data && typeof (data as { error: unknown }).error === "string") {
+        errorMessage = (data as { error: string }).error;
+      }
+    }
     throw new ApiError(errorMessage, response.status, data);
   }
 

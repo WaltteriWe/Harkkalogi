@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { formatMessageDate, getRolePill } from "../../components/inboxMessageCard.js";
+import { containsEmoji } from "../messages-validation.js";
 
 describe("messages-utils: formatMessageDate", () => {
   it("formats dates from today as 'Today, HH:mm'", () => {
@@ -77,6 +78,31 @@ describe("messages-utils: sorting by lastActivityAt", () => {
     assert.equal(sorted[0].id, 2);
     assert.equal(sorted[1].id, 3);
     assert.equal(sorted[2].id, 1);
+  });
+});
+
+describe("messages-validation: containsEmoji", () => {
+  it("returns false for regular text without emojis", () => {
+    assert.equal(containsEmoji("Hello world!"), false);
+    assert.equal(containsEmoji("Ääkköset toimivat Åland"), false);
+    assert.equal(containsEmoji("Punctuation: . , ! ? - _ @ # $ %"), false);
+    assert.equal(containsEmoji("Numbers: 1234567890"), false);
+  });
+
+  it("returns false for multiline text without emojis", () => {
+    assert.equal(containsEmoji("Line 1\nLine 2\r\nLine 3"), false);
+  });
+
+  it("returns true for strings containing emojis", () => {
+    assert.equal(containsEmoji("Hello 😀"), true);
+    assert.equal(containsEmoji("Great work 🚀"), true);
+    assert.equal(containsEmoji("❤️"), true);
+    assert.equal(containsEmoji("Thanks 👍"), true);
+    assert.equal(containsEmoji("Party 🎉 time"), true);
+  });
+
+  it("returns false for empty or falsy strings", () => {
+    assert.equal(containsEmoji(""), false);
   });
 });
 
