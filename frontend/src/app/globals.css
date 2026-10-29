@@ -99,11 +99,11 @@
 @layer components {
   /* Layout */
   .app-shell {
-    @apply grid min-h-dvh md:h-dvh md:max-h-dvh md:overflow-hidden grid-cols-1 md:grid-cols-[15.5rem_1fr];
+    @apply grid min-h-dvh grid-rows-[auto_1fr] md:h-dvh md:max-h-dvh md:overflow-hidden grid-cols-1 md:grid-cols-[15.5rem_1fr] md:grid-rows-1;
   }
 
   .sidebar {
-    @apply flex flex-col gap-1 bg-sidebar px-4 py-8 text-ink-inverse md:h-full md:overflow-y-auto;
+    @apply hidden md:flex flex-col gap-1 bg-sidebar px-4 py-8 text-ink-inverse md:h-full md:overflow-y-auto;
   }
 
   .nav-item {
