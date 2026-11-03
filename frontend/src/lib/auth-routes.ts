@@ -6,40 +6,35 @@ export const ROLE_LANDING_PATHS: Record<Role, string> = {
   admin: "/admin",
 };
 
-/**
- * Returns the default landing path for a given role, falling back to "/" for unknown roles.
- */
+const ROLE_ALLOWED_PREFIXES: Record<Role, string[]> = {
+  student: ["/reports", "/planning", "/report", "/documents", "/messages"],
+  teacher: ["/teacher-view", "/messages"],
+  admin: ["/admin"],
+};
+
+export function isValidRole(role?: string | null): role is Role {
+  return role === "student" || role === "teacher" || role === "admin";
+}
+
 export function getLandingPath(role?: string | null): string {
-  if (role === "teacher") return ROLE_LANDING_PATHS.teacher;
-  if (role === "admin") return ROLE_LANDING_PATHS.admin;
+  if (isValidRole(role)) {
+    return ROLE_LANDING_PATHS[role];
+  }
   return ROLE_LANDING_PATHS.student;
 }
 
-/**
- * Single Source of Truth for Role-Based Access Control.
- * Determines whether a user with a given role is allowed to access the specified route path.
- */
-export function isRouteAllowedForRole(role: Role | string, path: string): boolean {
-  if (role === "student") {
-    return (
-      path === "/" ||
-      path === "/reports" ||
-      path.startsWith("/planning") ||
-      path.startsWith("/report") ||
-      path.startsWith("/documents") ||
-      path.startsWith("/messages")
-    );
-  }
-  if (role === "teacher") {
-    return (
-      path === "/teacher-view" ||
-      path.startsWith("/teacher-view/") ||
-      path.startsWith("/messages")
-    );
-  }
-  if (role === "admin") {
-    return path === "/admin" || path.startsWith("/admin/");
-  }
-  return false;
+function matchesPrefix(path: string, prefix: string): boolean {
+  return path === prefix || path.startsWith(`${prefix}/`);
 }
 
+export function isRouteAllowedForRole(role: string, path: string): boolean {
+  if (!isValidRole(role)) return false;
+
+  if (role === "student" && path === "/") {
+    return true;
+  }
+
+  return ROLE_ALLOWED_PREFIXES[role].some((prefix) =>
+    matchesPrefix(path, prefix),
+  );
+}
