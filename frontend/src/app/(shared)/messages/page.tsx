@@ -388,7 +388,6 @@ export default function MessagesPage() {
                             </svg>
                             <span className="truncate max-w-[200px]">{att.name}</span>
                             {att.size && <span className="meta">({att.size})</span>}
-                            <span className="pill-success ml-1">Attached</span>
                           </div>
                         ))}
                       </div>

@@ -31,16 +31,13 @@ export default function LoginPage() {
         {/* Brand header */}
         <div className="text-center mb-8">
           <p className="text-2xl font-bold tracking-tight text-ink">Harkkalogi</p>
-          <p className="text-sm text-ink-muted mt-1">Internship reporting</p>
+          <p className="text-sm text-ink-muted mt-1 text-center font-semibold">Internship reporting</p>
         </div>
 
         {/* Login card */}
         <div className="card shadow-sm">
-          <div className="mb-6">
+          <div className="mb-6 text-2xl font-semibold text-ink">
             <h1 className="text-xl font-bold text-ink">Sign in</h1>
-            <p className="text-sm text-ink-muted mt-1">
-              Enter your credentials to access your account.
-            </p>
           </div>
 
           {/* Error banner */}
