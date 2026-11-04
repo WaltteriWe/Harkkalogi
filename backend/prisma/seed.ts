@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../generated/prisma/client.ts";
-import { Role, StudyType, InternshipStatus } from "../generated/prisma/enums.ts";
+import { Role, StudyType, InternshipStatus, ReportStatus, ReviewDecision } from "../generated/prisma/enums.ts";
 import { hashPassword } from "../src/lib/password.ts";
 
 const connectionString = process.env.DATABASE_URL;
@@ -36,6 +36,12 @@ async function main() {
     {
       email: "mikko.laine@metropolia.fi",
       name: "Mikko Laine",
+      role: Role.TEACHER,
+      passwordHash,
+    },
+    {
+      email: "hanna.ope@metropolia.fi",
+      name: "Hanna Opettaja",
       role: Role.TEACHER,
       passwordHash,
     },
@@ -180,6 +186,33 @@ async function main() {
     });
 
     console.log("Seeded sample message threads between Mikko Laine and Aino Korhonen");
+  }
+
+  // Seed sample Report for Aino's internship
+  const existingReport = await prisma.report.findFirst({
+    where: { internshipId: ainoInternship.id },
+  });
+
+  if (!existingReport) {
+    await prisma.report.create({
+      data: {
+        title: "Ensimmäisen kuukauden väliraportti",
+        content: "Olen tutustunut tiimiin ja perehtynyt Next.js- ja React-teknologioihin. Työtehtävät ovat edenneet tavoitteiden mukaisesti.",
+        status: ReportStatus.SUBMITTED,
+        submittedAt: new Date(Date.now() - 86400000 * 7),
+        internshipId: ainoInternship.id,
+        reviews: {
+          create: [
+            {
+              comment: "Erinomaista edistymistä! Jatka samaan malliin.",
+              decision: ReviewDecision.APPROVED,
+              teacherId: mikko.id,
+            },
+          ],
+        },
+      },
+    });
+    console.log("Seeded sample report for Aino Korhonen");
   }
 
   console.log("Database seed completed successfully.");
