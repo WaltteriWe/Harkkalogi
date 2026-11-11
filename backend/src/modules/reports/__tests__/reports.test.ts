@@ -40,8 +40,10 @@ describe("Reports Endpoints (/api/reports) [E2E HTTP Flow]", () => {
       assert.equal(res.status, 200);
       assert.ok(Array.isArray(res.body.reports));
       assert.ok(res.body.reports.length >= 1);
-      assert.equal(res.body.reports[0].title, "Ensimmäisen kuukauden väliraportti");
-      assert.ok(Array.isArray(res.body.reports[0].reviews));
+      const seeded = res.body.reports.find((r: any) => r.id === seededReportId);
+      assert.ok(seeded);
+      assert.equal(seeded.title, "Ensimmäisen kuukauden väliraportti");
+      assert.ok(Array.isArray(seeded.reviews));
     });
 
     it("filters reports by studentId", async () => {

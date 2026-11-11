@@ -24,6 +24,18 @@ export function errorHandler(
     return;
   }
 
+  if (
+    typeof err === "object" &&
+    err !== null &&
+    "statusCode" in err &&
+    typeof (err as any).statusCode === "number"
+  ) {
+    res.status((err as any).statusCode).json({
+      error: (err as any).message || "Error",
+    });
+    return;
+  }
+
   if (err instanceof ZodError) {
     res.status(400).json({
       error: "Validation failed",

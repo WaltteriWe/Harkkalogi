@@ -35,7 +35,9 @@ export const updateReportSchema = z.object({
     tasksAndLearning: z.string().optional(),
     attachments: z.array(reportAttachmentSchema).optional(),
     supervisorFeedbackRequested: z.boolean().optional(),
-    status: z.enum(["DRAFT", "SUBMITTED"]).optional(),
+    status: z
+      .enum(["DRAFT", "SUBMITTED", "UNDER_REVIEW", "REVIEWED", "REJECTED"])
+      .optional(),
   }),
 });
 

@@ -7,21 +7,20 @@ export const learningGoalSchema = z.object({
 
 export const savePlanSchema = z.object({
   body: z.object({
-    company: z.string().trim().optional().default(""),
-    jobTitle: z.string().trim().optional().default(""),
-    supervisorName: z.string().trim().optional().default(""),
-    supervisorContact: z.string().trim().optional().default(""),
-    startDate: z.string().optional().default(""),
-    endDate: z.string().optional().default(""),
-    plannedHours: z.union([z.number(), z.string()]).optional().default(800),
-    hoursPerWeek: z.union([z.number(), z.string()]).optional().default(""),
-    jobDescription: z.string().optional().default(""),
-    learningGoals: z.array(learningGoalSchema).optional().default([]),
-    assessment: z.string().optional().default(""),
+    company: z.string().trim().optional(),
+    jobTitle: z.string().trim().optional(),
+    supervisorName: z.string().trim().optional(),
+    supervisorContact: z.string().trim().optional(),
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
+    plannedHours: z.union([z.number(), z.string()]).optional(),
+    hoursPerWeek: z.union([z.number(), z.string()]).optional(),
+    jobDescription: z.string().optional(),
+    learningGoals: z.array(learningGoalSchema).optional(),
+    assessment: z.string().optional(),
     status: z
       .enum(["DRAFT", "SUBMITTED", "APPROVED", "NEEDS_CHANGES"])
-      .optional()
-      .default("DRAFT"),
+      .optional(),
     teacherFeedback: z.string().optional(),
   }),
 });

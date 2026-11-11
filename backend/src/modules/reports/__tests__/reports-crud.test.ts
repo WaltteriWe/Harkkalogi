@@ -139,5 +139,60 @@ describe("Reports CRUD Endpoints (/api/reports) [E2E HTTP Flow]", () => {
       assert.equal(getRes.status, 404);
     });
   });
+
+  describe("Reports Authorization & IDOR Protections", () => {
+    it("prevents student Aino from querying Ville's reports list via ?studentId", async () => {
+      const res = await server.request.get(
+        `/api/reports?studentId=${testUsers.ville.id}`,
+        { headers: testUsers.aino.authHeaders }
+      );
+      assert.equal(res.status, 403);
+      assert.equal(
+        res.body.error,
+        "Forbidden: You cannot view another student's reports"
+      );
+    });
+
+    it("allows teacher Mikko to query reports by studentId", async () => {
+      const res = await server.request.get(
+        `/api/reports?studentId=${testUsers.aino.id}`,
+        { headers: testUsers.mikko.authHeaders }
+      );
+      assert.equal(res.status, 200);
+      assert.ok(Array.isArray(res.body.reports));
+    });
+
+    it("prevents student Ville from viewing Aino's report by ID (IDOR prevention)", async () => {
+      const res = await server.request.get(`/api/reports/${createdReportId}`, {
+        headers: testUsers.ville.authHeaders,
+      });
+      assert.equal(res.status, 403);
+      assert.equal(
+        res.body.error,
+        "Forbidden: You do not have permission to view this report"
+      );
+    });
+
+    it("allows teacher Mikko to view student Aino's report by ID", async () => {
+      const res = await server.request.get(`/api/reports/${createdReportId}`, {
+        headers: testUsers.mikko.authHeaders,
+      });
+      assert.equal(res.status, 200);
+      assert.equal(res.body.report.id, createdReportId);
+    });
+
+    it("prevents student Aino from setting review decision status directly", async () => {
+      const res = await server.request.patch(
+        `/api/reports/${createdReportId}`,
+        { status: "REVIEWED" },
+        { headers: testUsers.aino.authHeaders }
+      );
+      assert.equal(res.status, 403);
+      assert.equal(
+        res.body.error,
+        "Forbidden: Students can only set report status to DRAFT or SUBMITTED"
+      );
+    });
+  });
 });
 

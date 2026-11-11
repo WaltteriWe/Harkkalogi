@@ -31,6 +31,7 @@ export function useAutoSave<T>({
   latestDataRef.current = data;
 
   const isDirtyRef = useRef<boolean>(false);
+  const changeVersionRef = useRef<number>(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const isSavingRef = useRef<boolean>(false);
   const onSaveRef = useRef(onSave);
@@ -47,14 +48,26 @@ export function useAutoSave<T>({
         return;
       }
 
+      const versionAtStart = changeVersionRef.current;
       isSavingRef.current = true;
       setStatus("saving");
 
       try {
         await onSaveRef.current(latestDataRef.current, isBackground);
-        isDirtyRef.current = false;
-        setStatus("saved");
-        setLastSavedAt(formatCurrentTime());
+        if (changeVersionRef.current === versionAtStart) {
+          isDirtyRef.current = false;
+          setStatus("saved");
+          setLastSavedAt(formatCurrentTime());
+        } else {
+          // Newer changes were typed while onSave was in-flight
+          isDirtyRef.current = true;
+          setStatus("unsaved");
+          if (!timerRef.current) {
+            timerRef.current = setTimeout(() => {
+              flush();
+            }, debounceMs);
+          }
+        }
       } catch (err) {
         setStatus("error");
         console.error("Auto-save draft failed:", err);
@@ -62,11 +75,12 @@ export function useAutoSave<T>({
         isSavingRef.current = false;
       }
     },
-    [enabled]
+    [enabled, debounceMs]
   );
 
   const notifyChange = useCallback(() => {
     if (!enabled) return;
+    changeVersionRef.current += 1;
     isDirtyRef.current = true;
     setStatus("unsaved");
 
@@ -93,29 +107,7 @@ export function useAutoSave<T>({
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, []);
 
-  // 2. Click-away (focusout on input/textarea/select)
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const handleFocusOut = (e: FocusEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (
-        target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.tagName === "SELECT")
-      ) {
-        if (isDirtyRef.current) {
-          flush();
-        }
-      }
-    };
-
-    window.addEventListener("focusout", handleFocusOut);
-    return () => window.removeEventListener("focusout", handleFocusOut);
-  }, [flush]);
-
-  // 3. Tab switch or minimize (visibilitychange)
+  // 2. Tab switch or minimize (visibilitychange)
   useEffect(() => {
     if (typeof document === "undefined") return;
 
@@ -130,7 +122,7 @@ export function useAutoSave<T>({
       document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [flush]);
 
-  // 4. Unmount flush (client-side route navigation)
+  // 3. Unmount flush (client-side route navigation)
   useEffect(() => {
     return () => {
       if (timerRef.current) {

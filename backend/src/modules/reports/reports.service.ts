@@ -1,5 +1,6 @@
 import { prisma } from "../../lib/prisma.ts";
 import { ReportStatus } from "../../../generated/prisma/enums.ts";
+import { AppError } from "../../middlewares/error.middleware.ts";
 import type { CreateReportInput, UpdateReportInput } from "./reports.schemas.ts";
 import type { AuthUser } from "../../types/index.ts";
 
@@ -90,7 +91,7 @@ export class ReportsService {
     return reports.map(formatReport);
   }
 
-  async getReportById(id: number) {
+  async getReportById(id: number, user: AuthUser) {
     const report = await prisma.report.findUnique({
       where: { id },
       include: {
@@ -107,6 +108,12 @@ export class ReportsService {
         },
       },
     });
+
+    if (!report) return null;
+
+    if (user.role === "STUDENT" && report.internship.studentId !== user.id) {
+      throw new AppError("Forbidden: You do not have permission to view this report", 403);
+    }
 
     return formatReport(report);
   }
@@ -195,9 +202,18 @@ export class ReportsService {
     }
 
     if (user.role === "STUDENT" && existing.internship.studentId !== user.id) {
-      const err = new Error("Forbidden: You do not have permission to edit this report");
-      (err as any).statusCode = 403;
-      throw err;
+      throw new AppError("Forbidden: You do not have permission to edit this report", 403);
+    }
+
+    if (
+      user.role === "STUDENT" &&
+      input.status &&
+      !["DRAFT", "SUBMITTED"].includes(input.status)
+    ) {
+      throw new AppError(
+        "Forbidden: Students can only set report status to DRAFT or SUBMITTED",
+        403
+      );
     }
 
     // Unpack current content
@@ -320,15 +336,11 @@ export class ReportsService {
     }
 
     if (user.role === "STUDENT" && existing.internship.studentId !== user.id) {
-      const err = new Error("Forbidden: You do not have permission to delete this report");
-      (err as any).statusCode = 403;
-      throw err;
+      throw new AppError("Forbidden: You do not have permission to delete this report", 403);
     }
 
     if (existing.status !== ReportStatus.DRAFT) {
-      const err = new Error("Bad Request: Only draft reports can be deleted");
-      (err as any).statusCode = 400;
-      throw err;
+      throw new AppError("Bad Request: Only draft reports can be deleted", 400);
     }
 
     await prisma.report.delete({ where: { id } });

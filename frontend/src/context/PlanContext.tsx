@@ -176,24 +176,48 @@ export function PlanProvider({ children }: { children: ReactNode }) {
         const p = data.plan;
         setPlan((prev) => ({
           ...prev,
-          company: p.company || prev.company,
-          jobTitle: p.jobTitle || prev.jobTitle,
-          supervisorName: p.supervisorName || prev.supervisorName,
-          supervisorContact: p.supervisorContact || prev.supervisorContact,
-          startDate: p.startDate || prev.startDate,
-          endDate: p.endDate || prev.endDate,
-          plannedHours: p.plannedHours !== undefined ? p.plannedHours : prev.plannedHours,
-          hoursPerWeek: p.hoursPerWeek !== undefined ? p.hoursPerWeek : prev.hoursPerWeek,
-          jobDescription: p.jobDescription || prev.jobDescription,
-          learningGoals:
-            Array.isArray(p.learningGoals) && p.learningGoals.length > 0
-              ? p.learningGoals
-              : prev.learningGoals,
-          assessment: p.assessment || prev.assessment,
+          company:
+            p.company !== undefined && p.company !== null ? p.company : prev.company,
+          jobTitle:
+            p.jobTitle !== undefined && p.jobTitle !== null ? p.jobTitle : prev.jobTitle,
+          supervisorName:
+            p.supervisorName !== undefined && p.supervisorName !== null
+              ? p.supervisorName
+              : prev.supervisorName,
+          supervisorContact:
+            p.supervisorContact !== undefined && p.supervisorContact !== null
+              ? p.supervisorContact
+              : prev.supervisorContact,
+          startDate:
+            p.startDate !== undefined && p.startDate !== null ? p.startDate : prev.startDate,
+          endDate:
+            p.endDate !== undefined && p.endDate !== null ? p.endDate : prev.endDate,
+          plannedHours:
+            p.plannedHours !== undefined && p.plannedHours !== null
+              ? p.plannedHours
+              : prev.plannedHours,
+          hoursPerWeek:
+            p.hoursPerWeek !== undefined && p.hoursPerWeek !== null
+              ? p.hoursPerWeek
+              : prev.hoursPerWeek,
+          jobDescription:
+            p.jobDescription !== undefined && p.jobDescription !== null
+              ? p.jobDescription
+              : prev.jobDescription,
+          learningGoals: Array.isArray(p.learningGoals)
+            ? p.learningGoals
+            : prev.learningGoals,
+          assessment:
+            p.assessment !== undefined && p.assessment !== null
+              ? p.assessment
+              : prev.assessment,
           status: p.status || prev.status,
           submittedAt: p.submittedAt ? p.submittedAt.split("T")[0] : prev.submittedAt,
           approvedAt: p.approvedAt ? p.approvedAt.split("T")[0] : prev.approvedAt,
-          teacherFeedback: p.teacherFeedback || prev.teacherFeedback,
+          teacherFeedback:
+            p.teacherFeedback !== undefined && p.teacherFeedback !== null
+              ? p.teacherFeedback
+              : prev.teacherFeedback,
         }));
       })
       .catch((err) => {

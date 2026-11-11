@@ -1,5 +1,6 @@
 import { prisma } from "../../lib/prisma.ts";
 import { PlanStatus } from "../../../generated/prisma/enums.ts";
+import { AppError } from "../../middlewares/error.middleware.ts";
 import type { SavePlanInput } from "./plans.schemas.ts";
 import type { AuthUser } from "../../types/index.ts";
 
@@ -54,7 +55,7 @@ export class PlansService {
     return formatPlan(plan);
   }
 
-  async getPlanById(id: number) {
+  async getPlanById(id: number, user: AuthUser) {
     const plan = await prisma.plan.findUnique({
       where: { id },
       include: {
@@ -62,6 +63,12 @@ export class PlansService {
         student: { select: { id: true, name: true, email: true } },
       },
     });
+
+    if (!plan) return null;
+
+    if (user.role === "STUDENT" && plan.studentId !== user.id) {
+      throw new AppError("Forbidden: You do not have permission to view this plan", 403);
+    }
 
     return formatPlan(plan);
   }
@@ -77,9 +84,28 @@ export class PlansService {
         });
 
     if (existing && user.role === "STUDENT" && existing.studentId !== user.id) {
-      const err = new Error("Forbidden: You cannot modify another student's plan");
-      (err as any).statusCode = 403;
-      throw err;
+      throw new AppError("Forbidden: You cannot modify another student's plan", 403);
+    }
+
+    if (user.role === "STUDENT") {
+      if (
+        input.status &&
+        (input.status.toUpperCase() === "APPROVED" ||
+          input.status.toUpperCase() === "NEEDS_CHANGES")
+      ) {
+        throw new AppError("Forbidden: Students cannot set approval status", 403);
+      }
+
+      if (
+        input.teacherFeedback !== undefined &&
+        input.teacherFeedback !== (existing ? existing.teacherFeedback : undefined)
+      ) {
+        throw new AppError("Forbidden: Students cannot modify teacher feedback", 403);
+      }
+
+      if (existing && existing.status === PlanStatus.APPROVED) {
+        throw new AppError("Forbidden: Approved plans cannot be modified by students", 403);
+      }
     }
 
     const plannedHours =
@@ -96,6 +122,7 @@ export class PlansService {
 
     let status = existing ? existing.status : PlanStatus.DRAFT;
     let submittedAt = existing ? existing.submittedAt : null;
+    let approvedAt = existing ? existing.approvedAt : null;
 
     if (input.status) {
       const upper = input.status.toUpperCase();
@@ -106,6 +133,9 @@ export class PlansService {
         }
       } else if (upper === "APPROVED") {
         status = PlanStatus.APPROVED;
+        if (!approvedAt) {
+          approvedAt = new Date();
+        }
       } else if (upper === "NEEDS_CHANGES") {
         status = PlanStatus.NEEDS_CHANGES;
       } else {
@@ -138,6 +168,7 @@ export class PlansService {
           assessment: input.assessment !== undefined ? input.assessment : existing.assessment,
           status,
           submittedAt,
+          approvedAt,
           teacherFeedback:
             input.teacherFeedback !== undefined ? input.teacherFeedback : existing.teacherFeedback,
         },
@@ -146,9 +177,9 @@ export class PlansService {
 
       return formatPlan(updated);
     } else {
-      // Find or create internship
+      // Find or create internship without an attached plan
       let internship = await prisma.internship.findFirst({
-        where: { studentId },
+        where: { studentId, plan: null },
       });
 
       if (!internship) {
@@ -176,6 +207,7 @@ export class PlansService {
           assessment: input.assessment || "",
           status,
           submittedAt,
+          approvedAt,
           studentId,
           internshipId: internship.id,
         },

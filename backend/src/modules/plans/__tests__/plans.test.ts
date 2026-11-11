@@ -1,6 +1,7 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { setupTestServer, getTestUsers } from "../../../test-utils/test-server.ts";
+import { prisma } from "../../../lib/prisma.ts";
 
 describe("Plans Endpoints (/api/plans) [E2E HTTP Flow]", () => {
   let server: Awaited<ReturnType<typeof setupTestServer>>;
@@ -9,9 +10,15 @@ describe("Plans Endpoints (/api/plans) [E2E HTTP Flow]", () => {
   before(async () => {
     server = await setupTestServer();
     testUsers = await getTestUsers(server);
+    await prisma.plan.deleteMany({
+      where: { studentId: testUsers.ville.id },
+    });
   });
 
   after(async () => {
+    await prisma.plan.deleteMany({
+      where: { studentId: testUsers.ville.id },
+    });
     await server.close();
   });
 
@@ -115,6 +122,104 @@ describe("Plans Endpoints (/api/plans) [E2E HTTP Flow]", () => {
       );
 
       assert.equal(res.status, 403);
+    });
+
+    it("prevents student Aino from viewing Ville's plan by ID (IDOR prevention)", async () => {
+      const villePlanRes = await server.request.get("/api/plans/my-plan", {
+        headers: testUsers.ville.authHeaders,
+      });
+      const villePlanId = villePlanRes.body.plan.id;
+
+      const res = await server.request.get(`/api/plans/${villePlanId}`, {
+        headers: testUsers.aino.authHeaders,
+      });
+
+      assert.equal(res.status, 403);
+      assert.equal(
+        res.body.error,
+        "Forbidden: You do not have permission to view this plan"
+      );
+    });
+
+    it("allows teacher Mikko to view student Ville's plan by ID", async () => {
+      const villePlanRes = await server.request.get("/api/plans/my-plan", {
+        headers: testUsers.ville.authHeaders,
+      });
+      const villePlanId = villePlanRes.body.plan.id;
+
+      const res = await server.request.get(`/api/plans/${villePlanId}`, {
+        headers: testUsers.mikko.authHeaders,
+      });
+
+      assert.equal(res.status, 200);
+      assert.equal(res.body.plan.id, villePlanId);
+      assert.equal(res.body.plan.company, "Software Innovations Oy");
+    });
+
+    it("prevents student Ville from self-approving their plan", async () => {
+      const res = await server.request.patch(
+        "/api/plans/my-plan",
+        { status: "APPROVED" },
+        { headers: testUsers.ville.authHeaders }
+      );
+
+      assert.equal(res.status, 403);
+      assert.equal(
+        res.body.error,
+        "Forbidden: Students cannot set approval status"
+      );
+    });
+
+    it("prevents student Ville from writing teacher feedback", async () => {
+      const res = await server.request.patch(
+        "/api/plans/my-plan",
+        { teacherFeedback: "Forged teacher approval." },
+        { headers: testUsers.ville.authHeaders }
+      );
+
+      assert.equal(res.status, 403);
+      assert.equal(
+        res.body.error,
+        "Forbidden: Students cannot modify teacher feedback"
+      );
+    });
+
+    it("allows teacher Mikko to approve Ville's plan with feedback", async () => {
+      const villePlanRes = await server.request.get("/api/plans/my-plan", {
+        headers: testUsers.ville.authHeaders,
+      });
+      const villePlanId = villePlanRes.body.plan.id;
+
+      const res = await server.request.patch(
+        `/api/plans/${villePlanId}`,
+        {
+          status: "APPROVED",
+          teacherFeedback: "Approved by Mikko: Good goals and plan.",
+        },
+        { headers: testUsers.mikko.authHeaders }
+      );
+
+      assert.equal(res.status, 200);
+      assert.equal(res.body.plan.status, "approved");
+      assert.equal(
+        res.body.plan.teacherFeedback,
+        "Approved by Mikko: Good goals and plan."
+      );
+      assert.ok(res.body.plan.approvedAt);
+    });
+
+    it("prevents student Ville from modifying an already approved plan", async () => {
+      const res = await server.request.patch(
+        "/api/plans/my-plan",
+        { company: "Modified After Approval" },
+        { headers: testUsers.ville.authHeaders }
+      );
+
+      assert.equal(res.status, 403);
+      assert.equal(
+        res.body.error,
+        "Forbidden: Approved plans cannot be modified by students"
+      );
     });
   });
 });

@@ -16,7 +16,8 @@ export class PlansController {
   async getById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = parseInt(String(req.params.id), 10);
-      const plan = await plansService.getPlanById(id);
+      const user = req.user!;
+      const plan = await plansService.getPlanById(id, user);
       if (!plan) {
         res.status(404).json({ error: "Plan not found" });
         return;

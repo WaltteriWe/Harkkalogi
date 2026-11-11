@@ -391,6 +391,13 @@ export function ReportProvider({ children }: { children: ReactNode }) {
               r.id === rep.id ? { ...r, id: newId } : r
             ),
           }));
+          if (typeof window !== "undefined") {
+            const url = new URL(window.location.href);
+            if (url.searchParams.get("id") === rep.id) {
+              url.searchParams.set("id", newId);
+              window.history.replaceState({}, "", url.toString());
+            }
+          }
         }
       }
     },
@@ -693,6 +700,13 @@ export function ReportProvider({ children }: { children: ReactNode }) {
                   : r
               ),
             }));
+            if (typeof window !== "undefined") {
+              const url = new URL(window.location.href);
+              if (url.searchParams.get("id") === activeReport.id) {
+                url.searchParams.set("id", newId);
+                window.history.replaceState({}, "", url.toString());
+              }
+            }
             return { success: true };
           }
         }
