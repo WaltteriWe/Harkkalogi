@@ -38,6 +38,8 @@ export default function PlanningPage() {
     removeGoal,
     saveDraft,
     submitPlan,
+    saveStatus,
+    lastSavedAt,
     wordCount,
     checklist,
   } = usePlan();
@@ -57,13 +59,13 @@ export default function PlanningPage() {
     }, 4500);
   };
 
-  const handleSaveDraft = () => {
-    saveDraft();
+  const handleSaveDraft = async () => {
+    await saveDraft();
     showNotification("info", "Draft saved successfully.");
   };
 
-  const handleSubmit = () => {
-    const res = submitPlan();
+  const handleSubmit = async () => {
+    const res = await submitPlan();
     if (res.success) {
       showNotification(
         "success",
@@ -106,7 +108,13 @@ export default function PlanningPage() {
             ? `Approved on ${plan.approvedAt || "earlier"}`
             : isSubmitted
               ? `Submitted on ${plan.submittedAt || "recently"}`
-              : `Draft saved automatically · last saved ${plan.lastSavedAt}`}
+              : saveStatus === "saving"
+                ? "Saving draft..."
+                : saveStatus === "unsaved"
+                  ? "Unsaved changes..."
+                  : saveStatus === "error"
+                    ? "Draft save failed · saved locally"
+                    : `Draft saved automatically · last saved ${lastSavedAt || plan.lastSavedAt}`}
         </p>
       </div>
 

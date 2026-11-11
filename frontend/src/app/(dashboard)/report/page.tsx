@@ -21,6 +21,8 @@ function ReportEditor() {
     toggleSupervisorFeedback,
     saveDraft,
     submitReport,
+    saveStatus,
+    lastSavedAt,
     wordCount,
     checklist,
   } = useReport();
@@ -47,13 +49,13 @@ function ReportEditor() {
     }, 4500);
   };
 
-  const handleSaveDraft = () => {
-    saveDraft();
+  const handleSaveDraft = async () => {
+    await saveDraft();
     showNotification("info", "Draft saved successfully.");
   };
 
-  const handleSubmit = () => {
-    const res = submitReport();
+  const handleSubmit = async () => {
+    const res = await submitReport();
     if (res.success) {
       showNotification(
         "success",
@@ -107,7 +109,13 @@ function ReportEditor() {
               ? `Approved on ${report.approvedAt || "earlier"}`
               : isSubmitted
                 ? `Submitted on ${report.submittedAt || "recently"}`
-                : `Draft saved automatically · last saved ${report.lastSavedAt}`}
+                : saveStatus === "saving"
+                  ? "Saving draft..."
+                  : saveStatus === "unsaved"
+                    ? "Unsaved changes..."
+                    : saveStatus === "error"
+                      ? "Draft save failed · saved locally"
+                      : `Draft saved automatically · last saved ${lastSavedAt || report.lastSavedAt}`}
           </p>
         </div>
 

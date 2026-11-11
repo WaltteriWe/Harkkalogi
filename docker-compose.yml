@@ -26,6 +26,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
       target: development
+    pull_policy: build
     image: harkkalogi-backend
     container_name: harkkalogi-backend
     restart: unless-stopped
@@ -44,6 +45,7 @@ services:
     volumes:
       - ./backend/src:/app/src
       - ./backend/prisma:/app/prisma
+      - ./backend/generated:/app/generated
       - /app/node_modules
 
   studio:
@@ -51,6 +53,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
       target: development
+    pull_policy: build
     image: harkkalogi-backend
     container_name: harkkalogi-studio
     restart: unless-stopped
@@ -65,6 +68,7 @@ services:
     command: ["node", "./scripts/studio-proxy.js"]
     volumes:
       - ./backend/prisma:/app/prisma
+      - ./backend/generated:/app/generated
       - ./backend/scripts:/app/scripts
 
   frontend:
@@ -72,6 +76,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       target: development
+    pull_policy: build
     container_name: harkkalogi-frontend
     restart: unless-stopped
     ports:

@@ -5,9 +5,18 @@ import React, {
   useContext,
   useCallback,
   useMemo,
+  useEffect,
   useSyncExternalStore,
   type ReactNode,
 } from "react";
+import { apiFetch } from "@/lib/api";
+import { useAuth } from "./AuthContext";
+import { formatDate } from "@/lib/dates";
+import {
+  useAutoSave,
+  formatCurrentTime,
+  type SaveStatus,
+} from "@/hooks/useAutoSave";
 
 export interface Attachment {
   id: string;
@@ -110,7 +119,24 @@ function loadFromStorage(): ReportStoreState {
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed.reports && Array.isArray(parsed.reports)) {
-          currentStore = parsed;
+          currentStore = {
+            ...parsed,
+            reports: parsed.reports.map((r: any) => {
+              let text = r.tasksAndLearning;
+              if (
+                typeof text === "string" &&
+                text.trim().startsWith('{"tasksAndLearning"')
+              ) {
+                try {
+                  const unwrap = JSON.parse(text);
+                  text = unwrap.tasksAndLearning ?? "";
+                } catch {
+                  // ignore
+                }
+              }
+              return { ...r, tasksAndLearning: text };
+            }),
+          };
         }
       }
     } catch {
@@ -175,21 +201,82 @@ function getServerSnapshot(): ReportStoreState {
   return DEFAULT_STORE;
 }
 
+function mapBackendReport(r: any): ReportState {
+  const isApproved = r.status === "REVIEWED" || r.status === "APPROVED";
+  const isSubmitted = r.status === "SUBMITTED";
+  const status: "draft" | "submitted" | "approved" = isApproved
+    ? "approved"
+    : isSubmitted
+      ? "submitted"
+      : "draft";
+
+  const submittedAt = r.submittedAt ? formatDate(r.submittedAt) : null;
+  const reviewApproved = r.reviews?.find((rev: any) => rev.decision === "APPROVED");
+  const approvedAt = reviewApproved ? formatDate(reviewApproved.createdAt) : null;
+  const teacherFeedback = r.reviews?.[0]?.comment || "";
+
+  let tasks = r.tasksAndLearning;
+  if (tasks === undefined) {
+    if (typeof r.content === "string") {
+      try {
+        const parsed = JSON.parse(r.content);
+        tasks = parsed?.tasksAndLearning ?? "";
+      } catch {
+        tasks = r.content;
+      }
+    } else {
+      tasks = "";
+    }
+  }
+
+  if (
+    typeof tasks === "string" &&
+    tasks.trim().startsWith('{"tasksAndLearning"')
+  ) {
+    try {
+      const unwrap = JSON.parse(tasks);
+      tasks = unwrap.tasksAndLearning ?? "";
+    } catch {
+      // ignore
+    }
+  }
+
+  return {
+    id: String(r.id),
+    title: r.title || "Report",
+    company: r.company || r.internship?.company || "Nordic Pixel Oy",
+    startDate: r.startDate || (r.internship?.startDate ? r.internship.startDate.split("T")[0] : "2026-06-01"),
+    endDate: r.endDate || (r.internship?.endDate ? r.internship.endDate.split("T")[0] : "2026-11-30"),
+    totalHours: r.totalHours !== undefined ? r.totalHours : 800,
+    tasksAndLearning: tasks || "",
+    attachments: Array.isArray(r.attachments) ? r.attachments : [],
+    supervisorFeedbackRequested: Boolean(r.supervisorFeedbackRequested),
+    status,
+    lastSavedAt: formatCurrentTime(),
+    submittedAt,
+    approvedAt,
+    createdAt: r.createdAt ? formatDate(r.createdAt) : "",
+    teacherFeedback,
+  };
+}
+
 export interface ReportContextType {
   reports: ReportState[];
   activeReportId: string;
   report: ReportState;
   setActiveReportId: (id: string) => void;
   getReport: (id: string) => ReportState | undefined;
-  createReport: (title?: string) => string;
-  deleteReport: (id: string) => void;
+  createReport: (title?: string) => Promise<string>;
+  deleteReport: (id: string) => Promise<void>;
   updateField: <K extends keyof ReportState>(field: K, value: ReportState[K]) => void;
   addAttachment: (name: string, size?: string) => void;
   removeAttachment: (id: string) => void;
   toggleSupervisorFeedback: () => void;
-  saveDraft: () => void;
-  submitReport: () => { success: boolean; message?: string };
+  saveDraft: () => Promise<void>;
+  submitReport: () => Promise<{ success: boolean; message?: string }>;
   resetReport: () => void;
+  saveStatus: SaveStatus;
+  lastSavedAt: string | null;
   wordCount: number;
   checklist: {
     isWorkplaceFilled: boolean;
@@ -202,15 +289,9 @@ export interface ReportContextType {
 
 const ReportContext = createContext<ReportContextType | undefined>(undefined);
 
-function formatCurrentTime(): string {
-  const now = new Date();
-  const hours = String(now.getHours()).padStart(2, "0");
-  const minutes = String(now.getMinutes()).padStart(2, "0");
-  return `${hours}:${minutes}`;
-}
-
 export function ReportProvider({ children }: { children: ReactNode }) {
   const store = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const { isAuthenticated, user } = useAuth();
 
   const activeReport = useMemo(() => {
     return (
@@ -219,6 +300,114 @@ export function ReportProvider({ children }: { children: ReactNode }) {
       DEFAULT_REPORTS[0]
     );
   }, [store.reports, store.activeReportId]);
+
+  // Load reports from backend API when authenticated
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let isMounted = true;
+
+    const fetchReports = async () => {
+      try {
+        const query = user?.role === "student" ? `?studentId=${user.id}` : "";
+        const data = await apiFetch<{ reports: any[] }>(`/reports${query}`);
+        if (!isMounted || !Array.isArray(data.reports) || data.reports.length === 0) {
+          return;
+        }
+
+        const backendReports = data.reports.map(mapBackendReport);
+
+        setStore((prev) => {
+          // Keep any local-only drafts that haven't synced, and combine with backend
+          const localOnly = prev.reports.filter(
+            (lr) => isNaN(Number(lr.id)) && !backendReports.some((br) => br.title === lr.title)
+          );
+          const merged = [...backendReports, ...localOnly];
+          const hasActive = merged.some((r) => r.id === prev.activeReportId);
+          return {
+            reports: merged,
+            activeReportId: hasActive ? prev.activeReportId : merged[0].id,
+          };
+        });
+      } catch (err) {
+        console.error("Failed to fetch reports from backend:", err);
+      }
+    };
+
+    fetchReports();
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthenticated, user?.id, user?.role]);
+
+  // Auto-Save handler
+  const handleAutoSave = useCallback(
+    async (rep: ReportState, isBackground = false) => {
+      if (!isAuthenticated || rep.status !== "draft") return;
+
+      const isNumericId = /^\d+$/.test(rep.id);
+      let tasks = rep.tasksAndLearning;
+      if (
+        typeof tasks === "string" &&
+        tasks.trim().startsWith('{"tasksAndLearning"')
+      ) {
+        try {
+          const unwrap = JSON.parse(tasks);
+          tasks = unwrap.tasksAndLearning ?? "";
+        } catch {
+          // ignore
+        }
+      }
+
+      const payload = {
+        title: rep.title,
+        company: rep.company,
+        startDate: rep.startDate,
+        endDate: rep.endDate,
+        totalHours: rep.totalHours,
+        tasksAndLearning: tasks,
+        attachments: rep.attachments,
+        supervisorFeedbackRequested: rep.supervisorFeedbackRequested,
+        status: "DRAFT" as const,
+      };
+
+      if (isNumericId) {
+        await apiFetch(`/reports/${rep.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+          keepalive: isBackground,
+        });
+      } else {
+        // Creating remote report for newly added draft
+        const res = await apiFetch<{ report: any }>("/reports", {
+          method: "POST",
+          body: JSON.stringify(payload),
+          keepalive: isBackground,
+        });
+        if (res.report && res.report.id) {
+          const newId = String(res.report.id);
+          setStore((prev) => ({
+            activeReportId: prev.activeReportId === rep.id ? newId : prev.activeReportId,
+            reports: prev.reports.map((r) =>
+              r.id === rep.id ? { ...r, id: newId } : r
+            ),
+          }));
+        }
+      }
+    },
+    [isAuthenticated]
+  );
+
+  const {
+    status: saveStatus,
+    lastSavedAt,
+    notifyChange,
+    flush,
+  } = useAutoSave<ReportState>({
+    data: activeReport,
+    onSave: handleAutoSave,
+    debounceMs: 1500,
+    enabled: isAuthenticated && activeReport.status === "draft",
+  });
 
   const setActiveReportId = useCallback((id: string) => {
     setStore((prev) => ({
@@ -234,47 +423,93 @@ export function ReportProvider({ children }: { children: ReactNode }) {
     [store.reports]
   );
 
-  const createReport = useCallback((title?: string): string => {
-    const now = new Date();
-    const dateStr = `${now.getDate()}.${now.getMonth() + 1}.${now.getFullYear()}`;
-    const newId = `report-${Date.now()}`;
-    const newReport: ReportState = {
-      id: newId,
-      title: title?.trim() || "New report",
-      company: "Nordic Pixel Oy",
-      startDate: "2026-06-01",
-      endDate: "2026-11-30",
-      totalHours: 800,
-      tasksAndLearning: "",
-      attachments: [],
-      supervisorFeedbackRequested: false,
-      status: "draft",
-      lastSavedAt: formatCurrentTime(),
-      submittedAt: null,
-      createdAt: dateStr,
-    };
+  const createReport = useCallback(
+    async (title?: string): Promise<string> => {
+      const now = new Date();
+      const dateStr = `${now.getDate()}.${now.getMonth() + 1}.${now.getFullYear()}`;
+      const defaultTitle = title?.trim() || "New report";
 
-    setStore((prev) => ({
-      reports: [newReport, ...prev.reports],
-      activeReportId: newId,
-    }));
+      if (isAuthenticated) {
+        try {
+          const res = await apiFetch<{ report: any }>("/reports", {
+            method: "POST",
+            body: JSON.stringify({
+              title: defaultTitle,
+              company: "Nordic Pixel Oy",
+              startDate: "2026-06-01",
+              endDate: "2026-11-30",
+              totalHours: 800,
+              tasksAndLearning: "",
+              attachments: [],
+              supervisorFeedbackRequested: false,
+              status: "DRAFT",
+            }),
+          });
+          if (res.report) {
+            const mapped = mapBackendReport(res.report);
+            setStore((prev) => ({
+              reports: [mapped, ...prev.reports],
+              activeReportId: mapped.id,
+            }));
+            return mapped.id;
+          }
+        } catch (err) {
+          console.error("Failed to create report on backend:", err);
+        }
+      }
 
-    return newId;
-  }, []);
-
-  const deleteReport = useCallback((id: string) => {
-    setStore((prev) => {
-      const remaining = prev.reports.filter((r) => r.id !== id);
-      const nextActive =
-        prev.activeReportId === id
-          ? remaining[0]?.id || "report-final"
-          : prev.activeReportId;
-      return {
-        reports: remaining,
-        activeReportId: nextActive,
+      // Local fallback
+      const newId = `report-${Date.now()}`;
+      const newReport: ReportState = {
+        id: newId,
+        title: defaultTitle,
+        company: "Nordic Pixel Oy",
+        startDate: "2026-06-01",
+        endDate: "2026-11-30",
+        totalHours: 800,
+        tasksAndLearning: "",
+        attachments: [],
+        supervisorFeedbackRequested: false,
+        status: "draft",
+        lastSavedAt: formatCurrentTime(),
+        submittedAt: null,
+        createdAt: dateStr,
       };
-    });
-  }, []);
+
+      setStore((prev) => ({
+        reports: [newReport, ...prev.reports],
+        activeReportId: newId,
+      }));
+
+      return newId;
+    },
+    [isAuthenticated]
+  );
+
+  const deleteReport = useCallback(
+    async (id: string) => {
+      if (isAuthenticated && /^\d+$/.test(id)) {
+        try {
+          await apiFetch(`/reports/${id}`, { method: "DELETE" });
+        } catch (err) {
+          console.error("Failed to delete report on backend:", err);
+        }
+      }
+
+      setStore((prev) => {
+        const remaining = prev.reports.filter((r) => r.id !== id);
+        const nextActive =
+          prev.activeReportId === id
+            ? remaining[0]?.id || "report-final"
+            : prev.activeReportId;
+        return {
+          reports: remaining,
+          activeReportId: nextActive,
+        };
+      });
+    },
+    [isAuthenticated]
+  );
 
   const updateField = useCallback(
     <K extends keyof ReportState>(field: K, value: ReportState[K]) => {
@@ -284,40 +519,49 @@ export function ReportProvider({ children }: { children: ReactNode }) {
           r.id === prev.activeReportId ? { ...r, [field]: value } : r
         ),
       }));
+      notifyChange();
     },
-    []
+    [notifyChange]
   );
 
-  const addAttachment = useCallback((name: string, size?: string) => {
-    const newAttachment: Attachment = {
-      id: `att-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      name,
-      status: "Uploaded",
-      size,
-    };
-    setStore((prev) => ({
-      ...prev,
-      reports: prev.reports.map((r) =>
-        r.id === prev.activeReportId
-          ? { ...r, attachments: [...r.attachments, newAttachment] }
-          : r
-      ),
-    }));
-  }, []);
+  const addAttachment = useCallback(
+    (name: string, size?: string) => {
+      const newAttachment: Attachment = {
+        id: `att-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        name,
+        status: "Uploaded",
+        size,
+      };
+      setStore((prev) => ({
+        ...prev,
+        reports: prev.reports.map((r) =>
+          r.id === prev.activeReportId
+            ? { ...r, attachments: [...r.attachments, newAttachment] }
+            : r
+        ),
+      }));
+      notifyChange();
+    },
+    [notifyChange]
+  );
 
-  const removeAttachment = useCallback((id: string) => {
-    setStore((prev) => ({
-      ...prev,
-      reports: prev.reports.map((r) =>
-        r.id === prev.activeReportId
-          ? {
-              ...r,
-              attachments: r.attachments.filter((item) => item.id !== id),
-            }
-          : r
-      ),
-    }));
-  }, []);
+  const removeAttachment = useCallback(
+    (id: string) => {
+      setStore((prev) => ({
+        ...prev,
+        reports: prev.reports.map((r) =>
+          r.id === prev.activeReportId
+            ? {
+                ...r,
+                attachments: r.attachments.filter((item) => item.id !== id),
+              }
+            : r
+        ),
+      }));
+      notifyChange();
+    },
+    [notifyChange]
+  );
 
   const toggleSupervisorFeedback = useCallback(() => {
     setStore((prev) => ({
@@ -331,22 +575,19 @@ export function ReportProvider({ children }: { children: ReactNode }) {
           : r
       ),
     }));
-  }, []);
+    notifyChange();
+  }, [notifyChange]);
 
-  const saveDraft = useCallback(() => {
+  const saveDraft = useCallback(async () => {
     const time = formatCurrentTime();
     setStore((prev) => ({
       ...prev,
       reports: prev.reports.map((r) =>
-        r.id === prev.activeReportId
-          ? {
-              ...r,
-              lastSavedAt: time,
-            }
-          : r
+        r.id === prev.activeReportId ? { ...r, lastSavedAt: time } : r
       ),
     }));
-  }, []);
+    await flush();
+  }, [flush]);
 
   const wordCount = useMemo(() => {
     const trimmed = activeReport.tasksAndLearning.trim();
@@ -383,7 +624,10 @@ export function ReportProvider({ children }: { children: ReactNode }) {
     activeReport.supervisorFeedbackRequested,
   ]);
 
-  const submitReport = useCallback((): { success: boolean; message?: string } => {
+  const submitReport = useCallback(async (): Promise<{
+    success: boolean;
+    message?: string;
+  }> => {
     if (!checklist.canSubmit) {
       return {
         success: false,
@@ -394,6 +638,68 @@ export function ReportProvider({ children }: { children: ReactNode }) {
     const now = new Date();
     const formattedDate = `${now.getDate()}.${now.getMonth() + 1}.${now.getFullYear()}`;
     const time = formatCurrentTime();
+
+    if (isAuthenticated) {
+      const isNumericId = /^\d+$/.test(activeReport.id);
+      let tasks = activeReport.tasksAndLearning;
+      if (
+        typeof tasks === "string" &&
+        tasks.trim().startsWith('{"tasksAndLearning"')
+      ) {
+        try {
+          const unwrap = JSON.parse(tasks);
+          tasks = unwrap.tasksAndLearning ?? "";
+        } catch {
+          // ignore
+        }
+      }
+
+      const payload = {
+        title: activeReport.title,
+        company: activeReport.company,
+        startDate: activeReport.startDate,
+        endDate: activeReport.endDate,
+        totalHours: activeReport.totalHours,
+        tasksAndLearning: tasks,
+        attachments: activeReport.attachments,
+        supervisorFeedbackRequested: activeReport.supervisorFeedbackRequested,
+        status: "SUBMITTED" as const,
+      };
+
+      try {
+        if (isNumericId) {
+          await apiFetch(`/reports/${activeReport.id}`, {
+            method: "PATCH",
+            body: JSON.stringify(payload),
+          });
+        } else {
+          const res = await apiFetch<{ report: any }>("/reports", {
+            method: "POST",
+            body: JSON.stringify(payload),
+          });
+          if (res.report?.id) {
+            const newId = String(res.report.id);
+            setStore((prev) => ({
+              activeReportId: newId,
+              reports: prev.reports.map((r) =>
+                r.id === activeReport.id
+                  ? {
+                      ...r,
+                      id: newId,
+                      status: "submitted",
+                      submittedAt: formattedDate,
+                      lastSavedAt: time,
+                    }
+                  : r
+              ),
+            }));
+            return { success: true };
+          }
+        }
+      } catch (err) {
+        console.error("Failed to submit report to backend:", err);
+      }
+    }
 
     setStore((prev) => ({
       ...prev,
@@ -409,7 +715,7 @@ export function ReportProvider({ children }: { children: ReactNode }) {
       ),
     }));
     return { success: true };
-  }, [checklist.canSubmit]);
+  }, [checklist.canSubmit, isAuthenticated, activeReport]);
 
   const resetReport = useCallback(() => {
     setStore(DEFAULT_STORE);
@@ -431,6 +737,8 @@ export function ReportProvider({ children }: { children: ReactNode }) {
       saveDraft,
       submitReport,
       resetReport,
+      saveStatus,
+      lastSavedAt: lastSavedAt || activeReport.lastSavedAt,
       wordCount,
       checklist,
     }),
@@ -449,6 +757,8 @@ export function ReportProvider({ children }: { children: ReactNode }) {
       saveDraft,
       submitReport,
       resetReport,
+      saveStatus,
+      lastSavedAt,
       wordCount,
       checklist,
     ]

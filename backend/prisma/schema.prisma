@@ -38,6 +38,13 @@ enum ReviewDecision {
   NEEDS_CHANGES
 }
 
+enum PlanStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  NEEDS_CHANGES
+}
+
 model User {
   id           Int        @id @default(autoincrement())
   email        String     @unique
@@ -49,6 +56,7 @@ model User {
 
   // Student side
   internships Internship[] @relation("StudentInternships")
+  plans       Plan[]       @relation("StudentPlans")
 
   // Teacher side
   supervised Internship[] @relation("TeacherInternships")
@@ -75,6 +83,7 @@ model Internship {
 
   reports  Report[]
   messages Message[]
+  plan     Plan?
 
   @@index([studentId])
   @@index([teacherId])
@@ -161,4 +170,33 @@ model MessageAttachment {
   message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   @@index([messageId])
+}
+
+model Plan {
+  id                Int        @id @default(autoincrement())
+  company           String
+  jobTitle          String?
+  supervisorName    String?
+  supervisorContact String?
+  startDate         DateTime?
+  endDate           DateTime?
+  plannedHours      Int?       @default(800)
+  hoursPerWeek      Float?
+  jobDescription    String?    @db.Text
+  learningGoals     Json?
+  assessment        String?    @db.Text
+  status            PlanStatus @default(DRAFT)
+  submittedAt       DateTime?
+  approvedAt        DateTime?
+  teacherFeedback   String?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  studentId         Int
+  student           User       @relation("StudentPlans", fields: [studentId], references: [id], onDelete: Cascade)
+
+  internshipId      Int?       @unique
+  internship        Internship? @relation(fields: [internshipId], references: [id], onDelete: SetNull)
+
+  @@index([studentId])
 }

@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../generated/prisma/client.ts";
-import { Role, StudyType, InternshipStatus, ReportStatus, ReviewDecision } from "../generated/prisma/enums.ts";
+import { Role, StudyType, InternshipStatus, ReportStatus, ReviewDecision, PlanStatus } from "../generated/prisma/enums.ts";
 import { hashPassword } from "../src/lib/password.ts";
 
 const connectionString = process.env.DATABASE_URL;
@@ -213,6 +213,41 @@ async function main() {
       },
     });
     console.log("Seeded sample report for Aino Korhonen");
+  }
+
+  // Seed sample Plan for Aino's internship
+  const existingPlan = await prisma.plan.findFirst({
+    where: { studentId: aino.id },
+  });
+
+  if (!existingPlan) {
+    await prisma.plan.create({
+      data: {
+        company: "Nordic Pixel Oy",
+        jobTitle: "Frontend Developer Trainee",
+        supervisorName: "Laura Nieminen",
+        supervisorContact: "laura.nieminen@nordicpixel.fi",
+        startDate: new Date("2026-06-01T08:00:00Z"),
+        endDate: new Date("2026-11-30T16:00:00Z"),
+        plannedHours: 800,
+        hoursPerWeek: 37.5,
+        jobDescription:
+          "Developing user interface components in React and TypeScript for customer-facing web applications. Collaborating in sprint reviews, writing automated component tests, and maintaining design system tokens with senior developers.",
+        learningGoals: [
+          { id: "goal-1", text: "Learn to build accessible UI components with React and TypeScript" },
+          { id: "goal-2", text: "Gain experience with Git workflows and pull request reviews in an agile team" },
+          { id: "goal-3", text: "Write unit and component tests with modern testing frameworks" },
+        ],
+        assessment: "Weekly 1-on-1 check-ins with supervisor Laura Nieminen, and mid-term evaluation in August.",
+        status: PlanStatus.APPROVED,
+        submittedAt: new Date("2026-05-12T10:00:00Z"),
+        approvedAt: new Date("2026-05-15T14:30:00Z"),
+        teacherFeedback: "Approved by Mikko Laine: Well-structured goals clearly tied to the curriculum.",
+        studentId: aino.id,
+        internshipId: ainoInternship.id,
+      },
+    });
+    console.log("Seeded sample plan for Aino Korhonen");
   }
 
   console.log("Database seed completed successfully.");

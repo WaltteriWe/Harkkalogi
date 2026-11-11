@@ -5,9 +5,17 @@ import React, {
   useContext,
   useCallback,
   useMemo,
+  useEffect,
   useSyncExternalStore,
   type ReactNode,
 } from "react";
+import { apiFetch } from "@/lib/api";
+import { useAuth } from "./AuthContext";
+import {
+  useAutoSave,
+  formatCurrentTime,
+  type SaveStatus,
+} from "@/hooks/useAutoSave";
 
 export interface LearningGoal {
   id: string;
@@ -136,9 +144,11 @@ export interface PlanContextType {
   addGoal: () => void;
   updateGoal: (id: string, text: string) => void;
   removeGoal: (id: string) => void;
-  saveDraft: () => void;
-  submitPlan: () => { success: boolean; message?: string };
+  saveDraft: () => Promise<void>;
+  submitPlan: () => Promise<{ success: boolean; message?: string }>;
   resetPlan: () => void;
+  saveStatus: SaveStatus;
+  lastSavedAt: string | null;
   wordCount: number;
   checklist: {
     isWorkplaceFilled: boolean;
@@ -151,21 +161,94 @@ export interface PlanContextType {
 
 const PlanContext = createContext<PlanContextType | undefined>(undefined);
 
-function formatCurrentTime(): string {
-  const now = new Date();
-  const hours = String(now.getHours()).padStart(2, "0");
-  const minutes = String(now.getMinutes()).padStart(2, "0");
-  return `${hours}:${minutes}`;
-}
-
 export function PlanProvider({ children }: { children: ReactNode }) {
   const plan = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const { isAuthenticated } = useAuth();
+
+  // Load plan from backend on mount when authenticated
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let isMounted = true;
+
+    apiFetch<{ plan: any }>("/plans/my-plan")
+      .then((data) => {
+        if (!isMounted || !data.plan) return;
+        const p = data.plan;
+        setPlan((prev) => ({
+          ...prev,
+          company: p.company || prev.company,
+          jobTitle: p.jobTitle || prev.jobTitle,
+          supervisorName: p.supervisorName || prev.supervisorName,
+          supervisorContact: p.supervisorContact || prev.supervisorContact,
+          startDate: p.startDate || prev.startDate,
+          endDate: p.endDate || prev.endDate,
+          plannedHours: p.plannedHours !== undefined ? p.plannedHours : prev.plannedHours,
+          hoursPerWeek: p.hoursPerWeek !== undefined ? p.hoursPerWeek : prev.hoursPerWeek,
+          jobDescription: p.jobDescription || prev.jobDescription,
+          learningGoals:
+            Array.isArray(p.learningGoals) && p.learningGoals.length > 0
+              ? p.learningGoals
+              : prev.learningGoals,
+          assessment: p.assessment || prev.assessment,
+          status: p.status || prev.status,
+          submittedAt: p.submittedAt ? p.submittedAt.split("T")[0] : prev.submittedAt,
+          approvedAt: p.approvedAt ? p.approvedAt.split("T")[0] : prev.approvedAt,
+          teacherFeedback: p.teacherFeedback || prev.teacherFeedback,
+        }));
+      })
+      .catch((err) => {
+        console.error("Failed to load plan from backend:", err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthenticated]);
+
+  const handleAutoSave = useCallback(
+    async (p: PlanState, isBackground = false) => {
+      if (!isAuthenticated || p.status !== "draft") return;
+
+      await apiFetch("/plans/my-plan", {
+        method: "PATCH",
+        body: JSON.stringify({
+          company: p.company,
+          jobTitle: p.jobTitle,
+          supervisorName: p.supervisorName,
+          supervisorContact: p.supervisorContact,
+          startDate: p.startDate,
+          endDate: p.endDate,
+          plannedHours: p.plannedHours,
+          hoursPerWeek: p.hoursPerWeek,
+          jobDescription: p.jobDescription,
+          learningGoals: p.learningGoals,
+          assessment: p.assessment,
+          status: "DRAFT",
+        }),
+        keepalive: isBackground,
+      });
+    },
+    [isAuthenticated]
+  );
+
+  const {
+    status: saveStatus,
+    lastSavedAt,
+    notifyChange,
+    flush,
+  } = useAutoSave<PlanState>({
+    data: plan,
+    onSave: handleAutoSave,
+    debounceMs: 1500,
+    enabled: isAuthenticated && plan.status === "draft",
+  });
 
   const updateField = useCallback(
     <K extends keyof PlanState>(field: K, value: PlanState[K]) => {
       setPlan((prev) => ({ ...prev, [field]: value }));
+      notifyChange();
     },
-    []
+    [notifyChange]
   );
 
   const addGoal = useCallback(() => {
@@ -177,28 +260,38 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       ...prev,
       learningGoals: [...prev.learningGoals, newGoal],
     }));
-  }, []);
+    notifyChange();
+  }, [notifyChange]);
 
-  const updateGoal = useCallback((id: string, text: string) => {
-    setPlan((prev) => ({
-      ...prev,
-      learningGoals: prev.learningGoals.map((g) =>
-        g.id === id ? { ...g, text } : g
-      ),
-    }));
-  }, []);
+  const updateGoal = useCallback(
+    (id: string, text: string) => {
+      setPlan((prev) => ({
+        ...prev,
+        learningGoals: prev.learningGoals.map((g) =>
+          g.id === id ? { ...g, text } : g
+        ),
+      }));
+      notifyChange();
+    },
+    [notifyChange]
+  );
 
-  const removeGoal = useCallback((id: string) => {
-    setPlan((prev) => ({
-      ...prev,
-      learningGoals: prev.learningGoals.filter((g) => g.id !== id),
-    }));
-  }, []);
+  const removeGoal = useCallback(
+    (id: string) => {
+      setPlan((prev) => ({
+        ...prev,
+        learningGoals: prev.learningGoals.filter((g) => g.id !== id),
+      }));
+      notifyChange();
+    },
+    [notifyChange]
+  );
 
-  const saveDraft = useCallback(() => {
+  const saveDraft = useCallback(async () => {
     const time = formatCurrentTime();
     setPlan((prev) => ({ ...prev, lastSavedAt: time }));
-  }, []);
+    await flush();
+  }, [flush]);
 
   const wordCount = useMemo(() => {
     const trimmed = plan.jobDescription.trim();
@@ -241,7 +334,10 @@ export function PlanProvider({ children }: { children: ReactNode }) {
     wordCount,
   ]);
 
-  const submitPlan = useCallback((): { success: boolean; message?: string } => {
+  const submitPlan = useCallback(async (): Promise<{
+    success: boolean;
+    message?: string;
+  }> => {
     if (!checklist.canSubmit) {
       return {
         success: false,
@@ -252,6 +348,30 @@ export function PlanProvider({ children }: { children: ReactNode }) {
     const formattedDate = `${now.getDate()}.${now.getMonth() + 1}.${now.getFullYear()}`;
     const time = formatCurrentTime();
 
+    if (isAuthenticated) {
+      try {
+        await apiFetch("/plans/my-plan", {
+          method: "PATCH",
+          body: JSON.stringify({
+            company: plan.company,
+            jobTitle: plan.jobTitle,
+            supervisorName: plan.supervisorName,
+            supervisorContact: plan.supervisorContact,
+            startDate: plan.startDate,
+            endDate: plan.endDate,
+            plannedHours: plan.plannedHours,
+            hoursPerWeek: plan.hoursPerWeek,
+            jobDescription: plan.jobDescription,
+            learningGoals: plan.learningGoals,
+            assessment: plan.assessment,
+            status: "SUBMITTED",
+          }),
+        });
+      } catch (err) {
+        console.error("Failed to submit plan to backend:", err);
+      }
+    }
+
     setPlan((prev) => ({
       ...prev,
       status: "submitted",
@@ -259,7 +379,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       lastSavedAt: time,
     }));
     return { success: true };
-  }, [checklist.canSubmit]);
+  }, [checklist.canSubmit, isAuthenticated, plan]);
 
   const resetPlan = useCallback(() => {
     setPlan(DEFAULT_PLAN);
@@ -275,6 +395,8 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       saveDraft,
       submitPlan,
       resetPlan,
+      saveStatus,
+      lastSavedAt: lastSavedAt || plan.lastSavedAt,
       wordCount,
       checklist,
     }),
@@ -287,6 +409,8 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       saveDraft,
       submitPlan,
       resetPlan,
+      saveStatus,
+      lastSavedAt,
       wordCount,
       checklist,
     ]

@@ -7,6 +7,7 @@ import { usersRoutes } from "./modules/users/index.ts";
 import { reportsRoutes } from "./modules/reports/index.ts";
 import { messagesRoutes } from "./modules/messages/index.ts";
 import { internshipsRoutes } from "./modules/internships/index.ts";
+import { plansRoutes } from "./modules/plans/index.ts";
 
 export function createApp(): Express {
   const app = express();
@@ -43,6 +44,7 @@ export function createApp(): Express {
   app.use("/api/reports", reportsRoutes);
   app.use("/api/messages", messagesRoutes);
   app.use("/api/internships", internshipsRoutes);
+  app.use("/api/plans", plansRoutes);
 
   // Global error handler (must be registered after routes)
   app.use(errorHandler);

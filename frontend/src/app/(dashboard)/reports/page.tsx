@@ -28,17 +28,17 @@ export default function ReportsPage() {
   const submittedCount = reports.filter((r) => r.status === "submitted").length;
   const draftCount = reports.filter((r) => r.status === "draft").length;
 
-  const handleCreateNew = (e: React.FormEvent) => {
+  const handleCreateNew = async (e: React.FormEvent) => {
     e.preventDefault();
     const titleToUse = newReportTitle.trim() || "New report";
-    const newId = createReport(titleToUse);
+    const newId = await createReport(titleToUse);
     setShowCreateModal(false);
     setNewReportTitle("");
     router.push(`/report?id=${newId}`);
   };
 
-  const handleDelete = (id: string, title: string) => {
-    deleteReport(id);
+  const handleDelete = async (id: string, title: string) => {
+    await deleteReport(id);
     showToast(`Removed "${title}".`);
   };
 
