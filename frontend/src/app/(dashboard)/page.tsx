@@ -41,46 +41,53 @@ export default function Home() {
         </div>
       </header>
 
-      <ReportingProgress />
+      {/* 2-Column Balanced Dashboard Layout */}
+      <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-[1fr_21rem]">
+        {/* Left Column: Vertical Progress Timeline */}
+        <ReportingProgress />
 
-      <div className="grid gap-6 md:grid-cols-3">
-        {/* Hours Logged Tile */}
-        <section className="card">
-          <p className="label">Hours logged</p>
-          <p className="mt-2">
-            <span className="tabular text-4xl">{hoursLogged}</span>{" "}
-            <span className="meta tabular text-base">/ {hoursTotal} h</span>
-          </p>
-          <div
-            className="progress-track mt-3"
-            role="progressbar"
-            aria-valuenow={hoursLogged}
-            aria-valuemax={hoursTotal}
-            aria-label="Hours logged"
-          >
+        {/* Right Column: Unified Metric & Contacts Card */}
+        <section className="card flex flex-col justify-between gap-6">
+          {/* Hours Logged Section */}
+          <div>
+            <p className="label">Hours logged</p>
+            <p className="mt-2">
+              <span className="tabular text-4xl">{hoursLogged}</span>{" "}
+              <span className="meta tabular text-base">/ {hoursTotal} h</span>
+            </p>
             <div
-              className="progress-bar"
-              style={{ width: `${progressPercent}%` }}
-            />
+              className="progress-track mt-3"
+              role="progressbar"
+              aria-valuenow={hoursLogged}
+              aria-valuemax={hoursTotal}
+              aria-label="Hours logged"
+            >
+              <div
+                className="progress-bar"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <p className="meta mt-3 text-base">
+              {remainingHours === 0
+                ? "Requirement fulfilled"
+                : `${remainingHours} h remaining`}
+            </p>
           </div>
-          <p className="meta mt-3 text-base">
-            {remainingHours === 0
-              ? "Requirement fulfilled"
-              : `${remainingHours} h remaining`}
-          </p>
-        </section>
 
-        {/* Contacts Tile */}
-        <section className="card">
-          <p className="label">Contacts</p>
-          <ul className="mt-2 flex flex-col gap-3">
-            {contacts.map(({ name, role }) => (
-              <li key={name}>
-                <p className="font-semibold">{name}</p>
-                <p className="meta text-base">{role}</p>
-              </li>
-            ))}
-          </ul>
+          <hr className="border-border" />
+
+          {/* Contacts Section */}
+          <div>
+            <p className="label">Contacts</p>
+            <ul className="mt-3 flex flex-col gap-3">
+              {contacts.map(({ name, role }) => (
+                <li key={name}>
+                  <p className="font-semibold text-ink">{name}</p>
+                  <p className="meta text-sm">{role}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
         </section>
       </div>
     </>

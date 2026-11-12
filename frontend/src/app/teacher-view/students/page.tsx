@@ -320,6 +320,13 @@ export default function MyStudentsPage() {
                             Review
                           </Link>
                           <Link
+                            href="/guidance-evaluation"
+                            className="text-ink-muted hover:text-ink hover:underline"
+                            title="View guidance evaluation"
+                          >
+                            Evaluation
+                          </Link>
+                          <Link
                             href="/messages"
                             className="text-ink-muted hover:text-ink hover:underline"
                           >

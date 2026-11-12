@@ -28,7 +28,7 @@ describe("auth-routes: ROLE_LANDING_PATHS and getLandingPath", () => {
 
 describe("auth-routes: isRouteAllowedForRole", () => {
   describe("student role", () => {
-    it("allows student to access student overview, reports, documents, and messages", () => {
+    it("allows student to access student overview, reports, documents, guidance evaluation, and messages", () => {
       assert.equal(isRouteAllowedForRole("student", "/"), true);
       assert.equal(isRouteAllowedForRole("student", "/reports"), true);
       assert.equal(isRouteAllowedForRole("student", "/planning"), true);
@@ -36,6 +36,7 @@ describe("auth-routes: isRouteAllowedForRole", () => {
       assert.equal(isRouteAllowedForRole("student", "/report/123"), true);
       assert.equal(isRouteAllowedForRole("student", "/documents"), true);
       assert.equal(isRouteAllowedForRole("student", "/documents/template-1"), true);
+      assert.equal(isRouteAllowedForRole("student", "/guidance-evaluation"), true);
       assert.equal(isRouteAllowedForRole("student", "/messages"), true);
     });
 
@@ -49,9 +50,10 @@ describe("auth-routes: isRouteAllowedForRole", () => {
   });
 
   describe("teacher role", () => {
-    it("allows teacher to access teacher views and shared messages", () => {
+    it("allows teacher to access teacher views, guidance evaluation, and shared messages", () => {
       assert.equal(isRouteAllowedForRole("teacher", "/teacher-view"), true);
       assert.equal(isRouteAllowedForRole("teacher", "/teacher-view/students"), true);
+      assert.equal(isRouteAllowedForRole("teacher", "/guidance-evaluation"), true);
       assert.equal(isRouteAllowedForRole("teacher", "/messages"), true);
     });
 

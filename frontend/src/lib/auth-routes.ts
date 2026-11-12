@@ -7,8 +7,15 @@ export const ROLE_LANDING_PATHS: Record<Role, string> = {
 };
 
 const ROLE_ALLOWED_PREFIXES: Record<Role, string[]> = {
-  student: ["/reports", "/planning", "/report", "/documents", "/messages"],
-  teacher: ["/teacher-view", "/messages"],
+  student: [
+    "/reports",
+    "/planning",
+    "/report",
+    "/documents",
+    "/messages",
+    "/guidance-evaluation",
+  ],
+  teacher: ["/teacher-view", "/messages", "/guidance-evaluation"],
   admin: ["/admin"],
 };
 

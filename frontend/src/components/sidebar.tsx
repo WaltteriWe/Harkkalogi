@@ -9,24 +9,55 @@ import { Role, getLandingPath } from "@/lib/auth-routes";
 
 export type { Role };
 
-const navByRole: Record<Role, { label: string; href: string }[]> = {
+export interface NavItem {
+  label: string;
+  href: string;
+}
+
+export interface NavGroup {
+  items: NavItem[];
+}
+
+export const navByRole: Record<Role, NavGroup[]> = {
   student: [
-    { label: "Overview", href: "/" },
-    { label: "Internship plan", href: "/planning" },
-    { label: "Reports", href: "/reports" },
-    { label: "Documents", href: "/documents" },
-    { label: "Messages", href: "/messages" },
+    {
+      items: [{ label: "Overview", href: "/" }],
+    },
+    {
+      items: [
+        { label: "Internship plan", href: "/planning" },
+        { label: "Reports", href: "/reports" },
+        { label: "Guidance evaluation", href: "/guidance-evaluation" },
+      ],
+    },
+    {
+      items: [
+        { label: "Documents", href: "/documents" },
+        { label: "Messages", href: "/messages" },
+      ],
+    },
   ],
   teacher: [
-    { label: "Review queue", href: "/teacher-view" },
-    { label: "My students", href: "/teacher-view/students" },
-    { label: "Messages", href: "/messages" },
+    {
+      items: [
+        { label: "Review queue", href: "/teacher-view" },
+        { label: "My students", href: "/teacher-view/students" },
+        { label: "Guidance evaluation", href: "/guidance-evaluation" },
+      ],
+    },
+    {
+      items: [{ label: "Messages", href: "/messages" }],
+    },
   ],
   admin: [
-    { label: "Overview", href: "/admin" },
-    { label: "Users and roles", href: "/admin/users" },
-    { label: "Programmes", href: "/admin/programmes" },
-    { label: "Settings", href: "/admin/settings" },
+    {
+      items: [
+        { label: "Overview", href: "/admin" },
+        { label: "Users and roles", href: "/admin/users" },
+        { label: "Programmes", href: "/admin/programmes" },
+        { label: "Settings", href: "/admin/settings" },
+      ],
+    },
   ],
 };
 
@@ -151,24 +182,34 @@ export default function Sidebar({ role, userName }: SidebarProps = {}) {
             className="fixed inset-x-0 top-14 z-40 flex max-h-[calc(100dvh-3.5rem)] flex-col gap-4 overflow-y-auto border-b border-sidebar-raised bg-sidebar p-4 shadow-2xl"
           >
             <nav aria-label="Mobile Navigation" className="flex flex-col gap-1 shrink-0">
-              {navByRole[activeRole]?.map(({ label, href }) => {
-                const isCurrent =
-                  pathname === href ||
-                  (href === "/reports" &&
-                    (pathname === "/report" || pathname.startsWith("/report/")));
+              {navByRole[activeRole]?.map((group, groupIdx) => (
+                <React.Fragment key={groupIdx}>
+                  {groupIdx > 0 && (
+                    <hr
+                      className="my-1.5 border-t border-sidebar-raised"
+                      aria-hidden="true"
+                    />
+                  )}
+                  {group.items.map(({ label, href }) => {
+                    const isCurrent =
+                      pathname === href ||
+                      (href === "/reports" &&
+                        (pathname === "/report" || pathname.startsWith("/report/")));
 
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    onClick={() => setIsOpen(false)}
-                    className="nav-item"
-                    aria-current={isCurrent ? "page" : undefined}
-                  >
-                    {label}
-                  </Link>
-                );
-              })}
+                    return (
+                      <Link
+                        key={href}
+                        href={href}
+                        onClick={() => setIsOpen(false)}
+                        className="nav-item"
+                        aria-current={isCurrent ? "page" : undefined}
+                      >
+                        {label}
+                      </Link>
+                    );
+                  })}
+                </React.Fragment>
+              ))}
             </nav>
 
             <div className="user-badge flex items-center justify-between gap-2 mt-2">
@@ -210,23 +251,33 @@ export default function Sidebar({ role, userName }: SidebarProps = {}) {
         </div>
 
         <nav aria-label="Main" className="flex flex-col gap-1 shrink-0">
-          {navByRole[activeRole]?.map(({ label, href }) => {
-            const isCurrent =
-              pathname === href ||
-              (href === "/reports" &&
-                (pathname === "/report" || pathname.startsWith("/report/")));
+          {navByRole[activeRole]?.map((group, groupIdx) => (
+            <React.Fragment key={groupIdx}>
+              {groupIdx > 0 && (
+                <hr
+                  className="my-2 border-t border-sidebar-raised"
+                  aria-hidden="true"
+                />
+              )}
+              {group.items.map(({ label, href }) => {
+                const isCurrent =
+                  pathname === href ||
+                  (href === "/reports" &&
+                    (pathname === "/report" || pathname.startsWith("/report/")));
 
-            return (
-              <Link
-                key={href}
-                href={href}
-                className="nav-item"
-                aria-current={isCurrent ? "page" : undefined}
-              >
-                {label}
-              </Link>
-            );
-          })}
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className="nav-item"
+                    aria-current={isCurrent ? "page" : undefined}
+                  >
+                    {label}
+                  </Link>
+                );
+              })}
+            </React.Fragment>
+          ))}
         </nav>
 
         <div className="user-badge flex items-center justify-between gap-2">
