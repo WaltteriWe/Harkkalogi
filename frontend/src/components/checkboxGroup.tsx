@@ -20,6 +20,7 @@ export interface CheckboxGroupProps {
   columns?: 1 | 2;
   idPrefix?: string;
   className?: string;
+  variant?: "card" | "plain";
 }
 
 /**
@@ -42,6 +43,7 @@ export function CheckboxGroup({
   columns = 1,
   idPrefix = "cg",
   className = "",
+  variant = "card",
 }: CheckboxGroupProps) {
   const isInteractive = !readOnly && !disabled;
 
@@ -55,10 +57,13 @@ export function CheckboxGroup({
       ? "grid grid-cols-1 md:grid-cols-2 gap-3"
       : "flex flex-col gap-2.5";
 
+  const containerClass =
+    variant === "plain"
+      ? `flex flex-col gap-4 ${className}`
+      : `card flex flex-col gap-4 border border-border bg-surface p-5 sm:p-6 ${className}`;
+
   return (
-    <fieldset
-      className={`card flex flex-col gap-4 border border-border bg-surface p-5 sm:p-6 ${className}`}
-    >
+    <fieldset className={containerClass}>
       <div className="flex flex-col gap-1">
         <div className="flex items-center justify-between gap-2">
           <legend className="text-base font-semibold text-ink">{heading}</legend>

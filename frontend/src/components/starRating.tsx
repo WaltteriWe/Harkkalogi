@@ -48,6 +48,7 @@ export interface StarEvaluationGroupProps {
   isCollapsed?: boolean;
   onCollapseChange?: (collapsed: boolean) => void;
   className?: string;
+  variant?: "card" | "plain";
 }
 
 /**
@@ -306,6 +307,7 @@ export function StarEvaluationGroup({
   isCollapsed: controlledCollapsed,
   onCollapseChange,
   className = "",
+  variant = "card",
 }: StarEvaluationGroupProps) {
   const containerRef = useRef<HTMLElement>(null);
   const [isEditing, setIsEditing] = useState<boolean>(defaultExpanded);
@@ -364,6 +366,19 @@ export function StarEvaluationGroup({
     }
   };
 
+  const containerClass =
+    variant === "plain"
+      ? `flex flex-col transition-all duration-200 ${
+          shouldCollapse
+            ? "gap-3 p-4 rounded-control border border-border bg-surface-muted/60 cursor-pointer hover:border-border-strong hover:bg-surface-muted"
+            : "gap-5"
+        } ${className}`
+      : `card flex flex-col border border-border bg-surface transition-all duration-200 ${
+          shouldCollapse
+            ? "gap-3 p-4 sm:p-5 cursor-pointer hover:border-border-strong hover:shadow-xs"
+            : "gap-5 p-5 sm:p-6"
+        } ${className}`;
+
   return (
     <section
       id={id}
@@ -371,11 +386,7 @@ export function StarEvaluationGroup({
       onClick={handleCardClick}
       onFocusCapture={handleFocus}
       onBlurCapture={handleBlur}
-      className={`card flex flex-col border border-border bg-surface transition-all duration-200 ${
-        shouldCollapse
-          ? "gap-3 p-4 sm:p-5 cursor-pointer hover:border-border-strong hover:shadow-xs"
-          : "gap-5 p-5 sm:p-6"
-      } ${className}`}
+      className={containerClass}
     >
       {/* Header section */}
       {shouldCollapse ? (

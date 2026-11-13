@@ -68,12 +68,16 @@ model User {
 }
 
 model Internship {
-  id          Int              @id @default(autoincrement())
-  company     String
-  description String?
-  startDate   DateTime
-  endDate     DateTime?
-  status      InternshipStatus @default(ONGOING)
+  id            Int              @id @default(autoincrement())
+  title         String           @default("Harjoittelu 1")
+  order         Int              @default(1)
+  credits       Int              @default(15)
+  requiredHours Int              @default(400)
+  company       String
+  description   String?
+  startDate     DateTime
+  endDate       DateTime?
+  status        InternshipStatus @default(ONGOING)
 
   studentId Int
   student   User @relation("StudentInternships", fields: [studentId], references: [id])
@@ -81,9 +85,10 @@ model Internship {
   teacherId Int?
   teacher   User? @relation("TeacherInternships", fields: [teacherId], references: [id])
 
-  reports  Report[]
-  messages Message[]
-  plan     Plan?
+  reports            Report[]
+  messages           Message[]
+  plan               Plan?
+  guidanceEvaluation GuidanceEvaluation?
 
   @@index([studentId])
   @@index([teacherId])
@@ -174,13 +179,14 @@ model MessageAttachment {
 
 model Plan {
   id                Int        @id @default(autoincrement())
+  scope             String     @default("h1")
   company           String
   jobTitle          String?
   supervisorName    String?
   supervisorContact String?
   startDate         DateTime?
   endDate           DateTime?
-  plannedHours      Int?       @default(800)
+  plannedHours      Int?       @default(400)
   hoursPerWeek      Float?
   jobDescription    String?    @db.Text
   learningGoals     Json?
@@ -197,6 +203,22 @@ model Plan {
 
   internshipId      Int?       @unique
   internship        Internship? @relation(fields: [internshipId], references: [id], onDelete: SetNull)
+
+  @@index([studentId])
+}
+
+model GuidanceEvaluation {
+  id           Int        @id @default(autoincrement())
+  internshipId Int        @unique
+  internship   Internship @relation(fields: [internshipId], references: [id], onDelete: Cascade)
+  studentId    Int
+  status       String     @default("DRAFT")
+  checklist    Json?
+  ratings      Json?
+  feedback     String?    @db.Text
+  submittedAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
   @@index([studentId])
 }

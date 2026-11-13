@@ -8,6 +8,13 @@ export const TEST_USERS = {
     name: "Aino Korhonen",
     heading: "My internship",
   },
+  freshStudent: {
+    email: "sara.niemi@metropolia.fi",
+    password: "password123",
+    landingPath: "/",
+    name: "Sara Niemi",
+    heading: "My internship",
+  },
   teacher: {
     email: "mikko.laine@metropolia.fi",
     password: "password123",

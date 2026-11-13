@@ -19,6 +19,7 @@ export function formatPlan(plan: any) {
 
   return {
     id: plan.id,
+    scope: plan.scope || "h1",
     company: plan.company || "",
     jobTitle: plan.jobTitle || "",
     supervisorName: plan.supervisorName || "",
@@ -147,6 +148,7 @@ export class PlansService {
       const updated = await prisma.plan.update({
         where: { id: existing.id },
         data: {
+          scope: input.scope !== undefined ? input.scope : (existing as any).scope || "h1",
           company: input.company !== undefined ? input.company : existing.company,
           jobTitle: input.jobTitle !== undefined ? input.jobTitle : existing.jobTitle,
           supervisorName:

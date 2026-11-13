@@ -4,11 +4,13 @@ import React, { useState, useEffect, Suspense, type ChangeEvent } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useReport } from "@/context/ReportContext";
+import { useInternship } from "@/context/InternshipContext";
 import DateInput from "@/components/dateInput";
 
 function ReportEditor() {
   const searchParams = useSearchParams();
   const queryId = searchParams.get("id");
+  const { targetHours } = useInternship();
 
   const {
     report,
@@ -234,7 +236,7 @@ function ReportEditor() {
                       className="input"
                       value={report.totalHours}
                       onChange={(e) => updateField("totalHours", e.target.value)}
-                      placeholder="800"
+                      placeholder={String(targetHours || 400)}
                       disabled={isApproved}
                     />
                   </div>

@@ -35,6 +35,10 @@ export const TEST_CREDENTIALS = {
     email: "aino.korhonen@metropolia.fi",
     password: "password123",
   },
+  sara: {
+    email: "sara.niemi@metropolia.fi",
+    password: "password123",
+  },
   ville: {
     email: "ville.virtanen@metropolia.fi",
     password: "password123",

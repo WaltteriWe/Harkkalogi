@@ -7,6 +7,7 @@ export const learningGoalSchema = z.object({
 
 export const savePlanSchema = z.object({
   body: z.object({
+    scope: z.enum(["h1", "h2", "combined"]).optional(),
     company: z.string().trim().optional(),
     jobTitle: z.string().trim().optional(),
     supervisorName: z.string().trim().optional(),

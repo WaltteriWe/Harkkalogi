@@ -5,16 +5,19 @@ import Link from "next/link";
 import { type StepStatus, type Step, useInternshipSteps } from "../hooks/steps";
 import { useReport } from "../context/ReportContext";
 import { usePlan } from "../context/PlanContext";
+import { useInternship } from "../context/InternshipContext";
 import { formatDate } from "../lib/dates";
 
 export default function ReportingProgress() {
   const { report } = useReport();
   const { plan } = usePlan();
+  const { activeInternship, targetHours, loggedHours } = useInternship();
 
   const isPlanApproved = plan.status === "approved";
   const isPlanSubmitted = plan.status === "submitted" || isPlanApproved;
-  const isReportApproved = report.status === "approved";
-  const isReportSubmitted = report.status === "submitted" || isReportApproved;
+  // Crucial: Report submission/approval is strictly gated on plan approval!
+  const isReportApproved = isPlanApproved && report.status === "approved";
+  const isReportSubmitted = isPlanApproved && (report.status === "submitted" || isReportApproved);
 
   const dynamicSteps = useMemo<Step[]>(() => {
     // 1. Plan submitted
@@ -26,11 +29,11 @@ export default function ReportingProgress() {
       : "Draft in progress";
 
     // 2. Plan approved
-    const step2Status: StepStatus = isPlanApproved
-      ? "done"
-      : isPlanSubmitted
-        ? "current"
-        : "upcoming";
+    const step2Status: StepStatus = !isPlanSubmitted
+      ? "upcoming"
+      : isPlanApproved
+        ? "done"
+        : "current";
     const step2Detail = isPlanApproved
       ? plan.approvedAt
         ? `Approved ${formatDate(plan.approvedAt) || plan.approvedAt}`
@@ -40,46 +43,53 @@ export default function ReportingProgress() {
         : "After submission";
 
     // 3. Internship in progress
-    const step3Status: StepStatus = isReportSubmitted
-      ? "done"
-      : isPlanApproved
-        ? "current"
-        : "upcoming";
-    const step3Detail = isReportSubmitted
-      ? "800 h completed"
-      : isPlanApproved
-        ? "Active · 640 / 800 h"
-        : "Starts after plan approval";
+    const isHoursDone = loggedHours >= targetHours && targetHours > 0;
+    const step3Status: StepStatus = !isPlanApproved
+      ? "upcoming"
+      : (isReportSubmitted || isHoursDone)
+        ? "done"
+        : "current";
+    const step3Detail = !isPlanApproved
+      ? "Starts after plan approval"
+      : (isReportSubmitted || isHoursDone)
+        ? `${targetHours} h completed`
+        : `Active · ${loggedHours} / ${targetHours} h`;
 
     // 4. Report & work certificate
-    const step4Status: StepStatus = isReportSubmitted
-      ? "done"
-      : "upcoming";
-    const step4Detail = isReportSubmitted
-      ? report.submittedAt
-        ? `Submitted ${formatDate(report.submittedAt) || report.submittedAt}`
-        : "Submitted with certificate"
-      : "Due at end of internship";
+    const step4Status: StepStatus = !isPlanApproved
+      ? "upcoming"
+      : isReportSubmitted
+        ? "done"
+        : isHoursDone
+          ? "current"
+          : "upcoming";
+    const step4Detail = !isPlanApproved
+      ? "Due at end of internship"
+      : isReportSubmitted
+        ? report.submittedAt
+          ? `Submitted ${formatDate(report.submittedAt) || report.submittedAt}`
+          : "Submitted with certificate"
+        : "Due at end of internship";
 
     // 5. Teacher approval & credits
-    const step5Status: StepStatus = isReportApproved
-      ? "done"
-      : isReportSubmitted
-        ? "current"
-        : "upcoming";
-    const step5Detail = isReportApproved
-      ? report.approvedAt
-        ? `Approved ${formatDate(report.approvedAt) || report.approvedAt}`
-        : "Approved · Credits to OMA"
-      : isReportSubmitted
-        ? "Under teacher review"
-        : "After report submission";
+    const step5Status: StepStatus = !isReportSubmitted
+      ? "upcoming"
+      : isReportApproved
+        ? "done"
+        : "current";
+    const step5Detail = !isReportSubmitted
+      ? "After report submission"
+      : isReportApproved
+        ? report.approvedAt
+          ? `Approved ${formatDate(report.approvedAt) || report.approvedAt}`
+          : "Approved · Credits to OMA"
+        : "Under teacher review";
 
     // 6. Guidance evaluation
-    const step6Status: StepStatus = isReportApproved ? "current" : "upcoming";
-    const step6Detail = isReportApproved
-      ? "Ready to fill"
-      : "Unlocks after approval";
+    const step6Status: StepStatus = !isReportApproved ? "upcoming" : "current";
+    const step6Detail = !isReportApproved
+      ? "Unlocks after approval"
+      : "Ready to fill";
 
     return [
       {
@@ -134,39 +144,23 @@ export default function ReportingProgress() {
     plan.approvedAt,
     report.submittedAt,
     report.approvedAt,
+    targetHours,
+    loggedHours,
   ]);
 
   const { steps, progress } = useInternshipSteps(dynamicSteps);
 
   const nextAction = useMemo(() => {
-    if (isReportApproved) {
+    if (!isPlanSubmitted) {
       return {
-        title: "Step 6: Harjoittelun ohjauksen arviointi",
+        title: "Step 1: Täytä harjoittelusuunnitelma",
         description:
-          "Harjoitteluraporttisi on hyväksytty! Täytä vielä harjoittelun ohjauksen arviointi suoritusprosessin viimeistelemiseksi.",
-        actionLabel: "Avaa ohjauksen arviointi →",
-        actionHref: "/guidance-evaluation",
+          "Aloita täyttämällä harjoittelupaikkasi tiedot, työtehtävät ja oppimistavoitteet suunnitelmalomakkeeseen.",
+        actionLabel: "Täytä suunnitelma →",
+        actionHref: "/planning",
       };
     }
-    if (isReportSubmitted) {
-      return {
-        title: "Step 5: Ohjaajan tarkistus käynnissä",
-        description:
-          "Harjoitteluraporttisi ja työtodistuksesi on toimitettu ohjaavalle opettajalle tarkistettavaksi.",
-        actionLabel: "Tarkastele raporttia →",
-        actionHref: "/reports",
-      };
-    }
-    if (isPlanApproved) {
-      return {
-        title: "Step 3: Harjoittelu käynnissä",
-        description:
-          "Harjoittelusuunnitelma on hyväksytty. Muista seurata työtuntejasi ja valmistella harjoitteluraporttia.",
-        actionLabel: "Siirry raportteihin →",
-        actionHref: "/reports",
-      };
-    }
-    if (isPlanSubmitted) {
+    if (!isPlanApproved) {
       return {
         title: "Step 2: Suunnitelma odottaa hyväksyntää",
         description:
@@ -175,14 +169,32 @@ export default function ReportingProgress() {
         actionHref: "/planning",
       };
     }
+    if (!isReportSubmitted) {
+      return {
+        title: "Step 3: Harjoittelu käynnissä",
+        description:
+          "Harjoittelusuunnitelma on hyväksytty. Muista seurata työtuntejasi ja valmistella harjoitteluraporttia.",
+        actionLabel: "Siirry raportteihin →",
+        actionHref: "/reports",
+      };
+    }
+    if (!isReportApproved) {
+      return {
+        title: "Step 5: Ohjaajan tarkistus käynnissä",
+        description:
+          "Harjoitteluraporttisi ja työtodistuksesi on toimitettu ohjaavalle opettajalle tarkistettavaksi.",
+        actionLabel: "Tarkastele raporttia →",
+        actionHref: "/reports",
+      };
+    }
     return {
-      title: "Step 1: Täytä harjoittelusuunnitelma",
+      title: "Step 6: Harjoittelun ohjauksen arviointi",
       description:
-        "Aloita täyttämällä harjoittelupaikkasi tiedot, työtehtävät ja oppimistavoitteet suunnitelmalomakkeeseen.",
-      actionLabel: "Täytä suunnitelma →",
-      actionHref: "/planning",
+        "Harjoitteluraporttisi on hyväksytty! Täytä vielä harjoittelun ohjauksen arviointi suoritusprosessin viimeistelemiseksi.",
+      actionLabel: "Avaa ohjauksen arviointi →",
+      actionHref: "/guidance-evaluation",
     };
-  }, [isReportApproved, isReportSubmitted, isPlanApproved, isPlanSubmitted]);
+  }, [isPlanSubmitted, isPlanApproved, isReportSubmitted, isReportApproved]);
 
   return (
     <section className="card flex flex-col justify-between gap-5 h-full">

@@ -5,6 +5,7 @@ import React, {
   useContext,
   useCallback,
   useEffect,
+  useState,
   useSyncExternalStore,
   type ReactNode,
 } from "react";
@@ -24,6 +25,11 @@ import {
   clearAuthCookie,
   sanitizeRedirectPath,
 } from "@/lib/auth-cookie";
+import { flushAllDrafts } from "@/lib/draft-registry";
+import { purgeHarkkalogiStorage } from "@/lib/storage-helpers";
+import { LogoutWarningModal } from "@/components/LogoutWarningModal";
+
+export { purgeHarkkalogiStorage };
 
 export { isRouteAllowedForRole, type Role };
 
@@ -100,8 +106,7 @@ function setStore(next: AuthStoreState) {
         window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(next.user));
         window.localStorage.setItem(TOKEN_STORAGE_KEY, next.token);
       } else {
-        window.localStorage.removeItem(USER_STORAGE_KEY);
-        window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+        purgeHarkkalogiStorage();
       }
     } catch {
       // Ignore
@@ -155,13 +160,14 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
-  logout: () => void;
+  logout: () => void | Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const [isLogoutWarningOpen, setIsLogoutWarningOpen] = useState(false);
 
   const store = useSyncExternalStore(
     subscribe,
@@ -230,13 +236,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [router]
   );
 
-  const logout = useCallback(() => {
+  const performLogout = useCallback(() => {
     // Fire-and-forget backend logout
     apiFetch("/auth/logout", { method: "POST" }).catch(() => {});
     clearAuthCookie();
+    purgeHarkkalogiStorage();
     setStore({ user: null, token: null, isLoading: false });
     router.push("/login");
   }, [router]);
+
+  const logout = useCallback(async () => {
+    try {
+      const flushResult = await flushAllDrafts();
+      if (!flushResult.allSaved) {
+        setIsLogoutWarningOpen(true);
+        return;
+      }
+    } catch {
+      setIsLogoutWarningOpen(true);
+      return;
+    }
+    performLogout();
+  }, [performLogout]);
+
+  const handleStayLoggedIn = useCallback(() => {
+    setIsLogoutWarningOpen(false);
+  }, []);
+
+  const handleConfirmLogout = useCallback(() => {
+    setIsLogoutWarningOpen(false);
+    performLogout();
+  }, [performLogout]);
 
   const value = {
     user: store.user,
@@ -247,7 +277,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      <LogoutWarningModal
+        isOpen={isLogoutWarningOpen}
+        onStayLoggedIn={handleStayLoggedIn}
+        onConfirmLogout={handleConfirmLogout}
+      />
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth(): AuthContextType {

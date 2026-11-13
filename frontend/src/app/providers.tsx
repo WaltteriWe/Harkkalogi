@@ -3,13 +3,16 @@
 import React, { type ReactNode } from "react";
 import { ReportProvider } from "../context/ReportContext";
 import { PlanProvider } from "../context/PlanContext";
+import { InternshipProvider } from "../context/InternshipContext";
 import { AuthProvider } from "../context/AuthContext";
 
 export default function Providers({ children }: { children: ReactNode }) {
   return (
     <AuthProvider>
       <ReportProvider>
-        <PlanProvider>{children}</PlanProvider>
+        <PlanProvider>
+          <InternshipProvider>{children}</InternshipProvider>
+        </PlanProvider>
       </ReportProvider>
     </AuthProvider>
   );

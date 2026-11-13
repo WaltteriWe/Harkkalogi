@@ -11,103 +11,49 @@ import React, {
 } from "react";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "./AuthContext";
-import { formatDate } from "@/lib/dates";
 import {
   useAutoSave,
   formatCurrentTime,
   type SaveStatus,
 } from "@/hooks/useAutoSave";
-
-export interface Attachment {
-  id: string;
-  name: string;
-  status: "Uploaded" | "Uploading";
-  size?: string;
-}
-
-export interface ReportState {
-  id: string;
-  title: string;
-  company: string;
-  startDate: string; // yyyy-mm-dd
-  endDate: string; // yyyy-mm-dd
-  totalHours: number | string;
-  tasksAndLearning: string;
-  attachments: Attachment[];
-  supervisorFeedbackRequested: boolean;
-  status: "draft" | "submitted" | "approved";
-  lastSavedAt: string;
-  submittedAt: string | null;
-  approvedAt?: string | null;
-  createdAt: string;
-  teacherFeedback?: string;
-}
-
-export interface ReportStoreState {
-  activeReportId: string;
-  reports: ReportState[];
-}
-
-const DEFAULT_REPORTS: ReportState[] = [
-  {
-    id: "report-final",
-    title: "Final internship report",
-    company: "Nordic Pixel Oy",
-    startDate: "2026-06-01",
-    endDate: "2026-11-30",
-    totalHours: 800,
-    tasksAndLearning:
-      "I built UI components for the customer portal in React and took part in weekly sprint reviews. The biggest thing I learned was how to collaborate effectively with senior developers and navigate a large existing codebase. I also gained practical experience with TypeScript, automated testing, and designing accessible component libraries following strict design tokens. Working directly on user-facing features taught me to prioritize performance and clean code architecture. Looking forward to applying these skills in upcoming projects and continuing to deepen my practical knowledge.",
-    attachments: [
-      {
-        id: "att-1",
-        name: "Tyotodistus_NordicPixel.pdf",
-        status: "Uploaded",
-        size: "840 KB",
-      },
-    ],
-    supervisorFeedbackRequested: false,
-    status: "draft",
-    lastSavedAt: "14:32",
-    submittedAt: null,
-    createdAt: "1.10.2026",
-  },
-  {
-    id: "report-midterm",
-    title: "Mid-term progress report",
-    company: "Nordic Pixel Oy",
-    startDate: "2026-06-01",
-    endDate: "2026-08-15",
-    totalHours: 400,
-    tasksAndLearning:
-      "During the first half of my practical training at Nordic Pixel Oy, I focused on frontend bug fixes, design system components, and unit tests. I participated in daily standups and sprint planning. My supervisor Laura Nieminen conducted the mid-term review with positive feedback on code quality and initiative.",
-    attachments: [
-      {
-        id: "att-mid",
-        name: "Valiarviointi_allekirjoitettu.pdf",
-        status: "Uploaded",
-        size: "620 KB",
-      },
-    ],
-    supervisorFeedbackRequested: true,
-    status: "approved",
-    lastSavedAt: "15.8.2026",
-    submittedAt: "15.8.2026",
-    approvedAt: "18.8.2026",
-    createdAt: "1.8.2026",
-    teacherFeedback:
-      "Approved by Mikko Laine: Excellent progress in transitioning to the development team. The learning reflections align well with the degree program goals.",
-  },
-];
-
-const DEFAULT_STORE: ReportStoreState = {
-  activeReportId: "report-final",
-  reports: DEFAULT_REPORTS,
-};
+import { registerDraftFlusher } from "@/lib/draft-registry";
+import {
+  type Attachment,
+  type ReportState,
+  type ReportStoreState,
+  type ReportChecklist,
+  type RawBackendReport,
+  createReportState,
+  createAttachment,
+  sanitizeTasksAndLearning,
+  toReportPayload,
+  mapBackendReport,
+  calculateReportWordCount,
+  calculateReportChecklist,
+  EMPTY_REPORT,
+  EMPTY_STORE,
+} from "@/lib/report-helpers";
 
 const STORAGE_KEY = "harkkalogi_report_store_v4";
 
-let currentStore: ReportStoreState = DEFAULT_STORE;
+function getReportStorageKey(): string {
+  if (typeof window !== "undefined") {
+    try {
+      const authUser = window.localStorage.getItem("harkkalogi_auth_user");
+      if (authUser) {
+        const parsed = JSON.parse(authUser);
+        if (parsed?.email) {
+          return `harkkalogi_reports_${parsed.email.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+        }
+      }
+    } catch {
+      // Ignore
+    }
+  }
+  return STORAGE_KEY;
+}
+
+let currentStore: ReportStoreState = EMPTY_STORE;
 let isLoadedFromStorage = false;
 let listeners: Array<() => void> = [];
 
@@ -115,29 +61,23 @@ function loadFromStorage(): ReportStoreState {
   if (isLoadedFromStorage) return currentStore;
   if (typeof window !== "undefined") {
     try {
-      const stored = window.localStorage.getItem(STORAGE_KEY);
+      const key = getReportStorageKey();
+      const stored = window.localStorage.getItem(key);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed.reports && Array.isArray(parsed.reports)) {
+        if (parsed.reports && Array.isArray(parsed.reports) && parsed.reports.length > 0) {
           currentStore = {
             ...parsed,
-            reports: parsed.reports.map((r: any) => {
-              let text = r.tasksAndLearning;
-              if (
-                typeof text === "string" &&
-                text.trim().startsWith('{"tasksAndLearning"')
-              ) {
-                try {
-                  const unwrap = JSON.parse(text);
-                  text = unwrap.tasksAndLearning ?? "";
-                } catch {
-                  // ignore
-                }
-              }
-              return { ...r, tasksAndLearning: text };
-            }),
+            reports: parsed.reports.map((r: Partial<ReportState>) => ({
+              ...r,
+              tasksAndLearning: sanitizeTasksAndLearning(r.tasksAndLearning),
+            })),
           };
+        } else {
+          currentStore = EMPTY_STORE;
         }
+      } else {
+        currentStore = EMPTY_STORE;
       }
     } catch {
       // Ignore
@@ -160,7 +100,8 @@ function setStore(
   currentStore = resolved;
   if (typeof window !== "undefined") {
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(resolved));
+      const key = getReportStorageKey();
+      window.localStorage.setItem(key, JSON.stringify(resolved));
     } catch {
       // Ignore
     }
@@ -171,7 +112,8 @@ function setStore(
 function subscribe(listener: () => void) {
   listeners.push(listener);
   const handleStorageEvent = (event: StorageEvent) => {
-    if (event.key === STORAGE_KEY && event.newValue) {
+    const key = getReportStorageKey();
+    if (event.key === key && event.newValue) {
       try {
         currentStore = JSON.parse(event.newValue);
         notify();
@@ -198,66 +140,7 @@ function getSnapshot(): ReportStoreState {
 }
 
 function getServerSnapshot(): ReportStoreState {
-  return DEFAULT_STORE;
-}
-
-function mapBackendReport(r: any): ReportState {
-  const isApproved = r.status === "REVIEWED" || r.status === "APPROVED";
-  const isSubmitted = r.status === "SUBMITTED";
-  const status: "draft" | "submitted" | "approved" = isApproved
-    ? "approved"
-    : isSubmitted
-      ? "submitted"
-      : "draft";
-
-  const submittedAt = r.submittedAt ? formatDate(r.submittedAt) : null;
-  const reviewApproved = r.reviews?.find((rev: any) => rev.decision === "APPROVED");
-  const approvedAt = reviewApproved ? formatDate(reviewApproved.createdAt) : null;
-  const teacherFeedback = r.reviews?.[0]?.comment || "";
-
-  let tasks = r.tasksAndLearning;
-  if (tasks === undefined) {
-    if (typeof r.content === "string") {
-      try {
-        const parsed = JSON.parse(r.content);
-        tasks = parsed?.tasksAndLearning ?? "";
-      } catch {
-        tasks = r.content;
-      }
-    } else {
-      tasks = "";
-    }
-  }
-
-  if (
-    typeof tasks === "string" &&
-    tasks.trim().startsWith('{"tasksAndLearning"')
-  ) {
-    try {
-      const unwrap = JSON.parse(tasks);
-      tasks = unwrap.tasksAndLearning ?? "";
-    } catch {
-      // ignore
-    }
-  }
-
-  return {
-    id: String(r.id),
-    title: r.title || "Report",
-    company: r.company || r.internship?.company || "Nordic Pixel Oy",
-    startDate: r.startDate || (r.internship?.startDate ? r.internship.startDate.split("T")[0] : "2026-06-01"),
-    endDate: r.endDate || (r.internship?.endDate ? r.internship.endDate.split("T")[0] : "2026-11-30"),
-    totalHours: r.totalHours !== undefined ? r.totalHours : 800,
-    tasksAndLearning: tasks || "",
-    attachments: Array.isArray(r.attachments) ? r.attachments : [],
-    supervisorFeedbackRequested: Boolean(r.supervisorFeedbackRequested),
-    status,
-    lastSavedAt: formatCurrentTime(),
-    submittedAt,
-    approvedAt,
-    createdAt: r.createdAt ? formatDate(r.createdAt) : "",
-    teacherFeedback,
-  };
+  return EMPTY_STORE;
 }
 
 export interface ReportContextType {
@@ -265,26 +148,19 @@ export interface ReportContextType {
   activeReportId: string;
   report: ReportState;
   setActiveReportId: (id: string) => void;
-  getReport: (id: string) => ReportState | undefined;
-  createReport: (title?: string) => Promise<string>;
+  createReport: (title?: string, initialHours?: number | string) => Promise<string>;
   deleteReport: (id: string) => Promise<void>;
+  updateReport: (patch: Partial<ReportState>) => void;
   updateField: <K extends keyof ReportState>(field: K, value: ReportState[K]) => void;
   addAttachment: (name: string, size?: string) => void;
   removeAttachment: (id: string) => void;
   toggleSupervisorFeedback: () => void;
   saveDraft: () => Promise<void>;
   submitReport: () => Promise<{ success: boolean; message?: string }>;
-  resetReport: () => void;
   saveStatus: SaveStatus;
   lastSavedAt: string | null;
   wordCount: number;
-  checklist: {
-    isWorkplaceFilled: boolean;
-    hasWorkCertificate: boolean;
-    isWordCountMet: boolean;
-    isSupervisorFeedbackRequested: boolean;
-    canSubmit: boolean;
-  };
+  checklist: ReportChecklist;
 }
 
 const ReportContext = createContext<ReportContextType | undefined>(undefined);
@@ -297,9 +173,21 @@ export function ReportProvider({ children }: { children: ReactNode }) {
     return (
       store.reports.find((r) => r.id === store.activeReportId) ||
       store.reports[0] ||
-      DEFAULT_REPORTS[0]
+      EMPTY_REPORT
     );
   }, [store.reports, store.activeReportId]);
+
+  // Force reload from user-specific storage when user is known, or reset when logged out
+  useEffect(() => {
+    if (!isAuthenticated) {
+      currentStore = EMPTY_STORE;
+      isLoadedFromStorage = false;
+      setStore(EMPTY_STORE);
+      return;
+    }
+    isLoadedFromStorage = false;
+    setStore(loadFromStorage());
+  }, [isAuthenticated, user?.email]);
 
   // Load reports from backend API when authenticated
   useEffect(() => {
@@ -309,17 +197,29 @@ export function ReportProvider({ children }: { children: ReactNode }) {
     const fetchReports = async () => {
       try {
         const query = user?.role === "student" ? `?studentId=${user.id}` : "";
-        const data = await apiFetch<{ reports: any[] }>(`/reports${query}`);
-        if (!isMounted || !Array.isArray(data.reports) || data.reports.length === 0) {
+        const data = await apiFetch<{ reports: RawBackendReport[] }>(`/reports${query}`);
+        if (!isMounted || !Array.isArray(data.reports)) {
+          return;
+        }
+
+        if (data.reports.length === 0) {
+          if (user?.role === "student") {
+            const freshDraft = createReportState({ id: "report-draft-1", totalHours: 400 });
+            setStore({
+              reports: [freshDraft],
+              activeReportId: freshDraft.id,
+            });
+          }
           return;
         }
 
         const backendReports = data.reports.map(mapBackendReport);
 
         setStore((prev) => {
-          // Keep any local-only drafts that haven't synced, and combine with backend
           const localOnly = prev.reports.filter(
-            (lr) => isNaN(Number(lr.id)) && !backendReports.some((br) => br.title === lr.title)
+            (lr) =>
+              isNaN(Number(lr.id)) &&
+              !backendReports.some((br) => br.title === lr.title)
           );
           const merged = [...backendReports, ...localOnly];
           const hasActive = merged.some((r) => r.id === prev.activeReportId);
@@ -337,60 +237,69 @@ export function ReportProvider({ children }: { children: ReactNode }) {
     return () => {
       isMounted = false;
     };
-  }, [isAuthenticated, user?.id, user?.role]);
+  }, [isAuthenticated, user?.id, user?.role, user?.email]);
 
-  // Auto-Save handler
-  const handleAutoSave = useCallback(
-    async (rep: ReportState, isBackground = false) => {
-      if (!isAuthenticated || rep.status !== "draft") return;
+  // Central active report updater: encapsulates immutable store mapping and triggers notifyChange
+  const updateActiveReport = useCallback(
+    (
+      patchOrUpdater:
+        | Partial<ReportState>
+        | ((current: ReportState) => Partial<ReportState>)
+    ) => {
+      setStore((prev) => ({
+        ...prev,
+        reports: prev.reports.map((r) => {
+          if (r.id !== prev.activeReportId) return r;
+          const patch =
+            typeof patchOrUpdater === "function"
+              ? patchOrUpdater(r)
+              : patchOrUpdater;
+          return { ...r, ...patch };
+        }),
+      }));
+      notifyChange();
+    },
+    []
+  );
+
+  // Unified backend persistence helper for auto-save and submission
+  const persistReport = useCallback(
+    async (
+      rep: ReportState,
+      status: "DRAFT" | "SUBMITTED",
+      options: { isBackground?: boolean } = {}
+    ): Promise<{ success: boolean; id: string; message?: string }> => {
+      if (!isAuthenticated) return { success: true, id: rep.id };
 
       const isNumericId = /^\d+$/.test(rep.id);
-      let tasks = rep.tasksAndLearning;
-      if (
-        typeof tasks === "string" &&
-        tasks.trim().startsWith('{"tasksAndLearning"')
-      ) {
-        try {
-          const unwrap = JSON.parse(tasks);
-          tasks = unwrap.tasksAndLearning ?? "";
-        } catch {
-          // ignore
+      const payload = toReportPayload(rep, status);
+
+      try {
+        if (isNumericId) {
+          await apiFetch(`/reports/${rep.id}`, {
+            method: "PATCH",
+            body: JSON.stringify(payload),
+            keepalive: options.isBackground,
+          });
+          return { success: true, id: rep.id };
         }
-      }
 
-      const payload = {
-        title: rep.title,
-        company: rep.company,
-        startDate: rep.startDate,
-        endDate: rep.endDate,
-        totalHours: rep.totalHours,
-        tasksAndLearning: tasks,
-        attachments: rep.attachments,
-        supervisorFeedbackRequested: rep.supervisorFeedbackRequested,
-        status: "DRAFT" as const,
-      };
-
-      if (isNumericId) {
-        await apiFetch(`/reports/${rep.id}`, {
-          method: "PATCH",
-          body: JSON.stringify(payload),
-          keepalive: isBackground,
-        });
-      } else {
-        // Creating remote report for newly added draft
-        const res = await apiFetch<{ report: any }>("/reports", {
+        const res = await apiFetch<{ report: RawBackendReport }>("/reports", {
           method: "POST",
           body: JSON.stringify(payload),
-          keepalive: isBackground,
+          keepalive: options.isBackground,
         });
-        if (res.report && res.report.id) {
+
+        if (res.report?.id) {
           const newId = String(res.report.id);
           setStore((prev) => ({
-            activeReportId: prev.activeReportId === rep.id ? newId : prev.activeReportId,
+            activeReportId:
+              prev.activeReportId === rep.id ? newId : prev.activeReportId,
             reports: prev.reports.map((r) =>
               r.id === rep.id ? { ...r, id: newId } : r
             ),
           }));
+
           if (typeof window !== "undefined") {
             const url = new URL(window.location.href);
             if (url.searchParams.get("id") === rep.id) {
@@ -398,10 +307,34 @@ export function ReportProvider({ children }: { children: ReactNode }) {
               window.history.replaceState({}, "", url.toString());
             }
           }
+          return { success: true, id: newId };
         }
+        return {
+          success: false,
+          id: rep.id,
+          message: "No report returned from server",
+        };
+      } catch (err: unknown) {
+        console.error(`Failed to sync report (${status}):`, err);
+        const message =
+          err instanceof Error ? err.message : "Failed to persist report";
+        return {
+          success: false,
+          id: rep.id,
+          message,
+        };
       }
     },
     [isAuthenticated]
+  );
+
+  // Auto-Save handler
+  const handleAutoSave = useCallback(
+    async (rep: ReportState, isBackground = false) => {
+      if (!isAuthenticated || rep.status !== "draft") return;
+      await persistReport(rep, "DRAFT", { isBackground });
+    },
+    [isAuthenticated, persistReport]
   );
 
   const {
@@ -416,6 +349,22 @@ export function ReportProvider({ children }: { children: ReactNode }) {
     enabled: isAuthenticated && activeReport.status === "draft",
   });
 
+  // Register flusher for pre-logout draft sync
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    return registerDraftFlusher(async (): Promise<boolean> => {
+      if (activeReport.status !== "draft" || saveStatus === "saved") {
+        return true;
+      }
+      try {
+        await flush();
+        return true;
+      } catch {
+        return false;
+      }
+    });
+  }, [isAuthenticated, activeReport.status, saveStatus, flush]);
+
   const setActiveReportId = useCallback((id: string) => {
     setStore((prev) => ({
       ...prev,
@@ -423,34 +372,23 @@ export function ReportProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  const getReport = useCallback(
-    (id: string) => {
-      return store.reports.find((r) => r.id === id);
-    },
-    [store.reports]
-  );
-
   const createReport = useCallback(
-    async (title?: string): Promise<string> => {
+    async (title?: string, initialHours?: number | string): Promise<string> => {
       const now = new Date();
       const dateStr = `${now.getDate()}.${now.getMonth() + 1}.${now.getFullYear()}`;
       const defaultTitle = title?.trim() || "New report";
+      const hoursToUse = initialHours !== undefined ? initialHours : 400;
 
       if (isAuthenticated) {
         try {
-          const res = await apiFetch<{ report: any }>("/reports", {
+          const res = await apiFetch<{ report: RawBackendReport }>("/reports", {
             method: "POST",
-            body: JSON.stringify({
-              title: defaultTitle,
-              company: "Nordic Pixel Oy",
-              startDate: "2026-06-01",
-              endDate: "2026-11-30",
-              totalHours: 800,
-              tasksAndLearning: "",
-              attachments: [],
-              supervisorFeedbackRequested: false,
-              status: "DRAFT",
-            }),
+            body: JSON.stringify(
+              toReportPayload(
+                createReportState({ title: defaultTitle, totalHours: hoursToUse }),
+                "DRAFT"
+              )
+            ),
           });
           if (res.report) {
             const mapped = mapBackendReport(res.report);
@@ -466,29 +404,19 @@ export function ReportProvider({ children }: { children: ReactNode }) {
       }
 
       // Local fallback
-      const newId = `report-${Date.now()}`;
-      const newReport: ReportState = {
-        id: newId,
+      const newReport = createReportState({
         title: defaultTitle,
-        company: "Nordic Pixel Oy",
-        startDate: "2026-06-01",
-        endDate: "2026-11-30",
-        totalHours: 800,
-        tasksAndLearning: "",
-        attachments: [],
-        supervisorFeedbackRequested: false,
-        status: "draft",
+        totalHours: hoursToUse,
         lastSavedAt: formatCurrentTime(),
-        submittedAt: null,
         createdAt: dateStr,
-      };
+      });
 
       setStore((prev) => ({
         reports: [newReport, ...prev.reports],
-        activeReportId: newId,
+        activeReportId: newReport.id,
       }));
 
-      return newId;
+      return newReport.id;
     },
     [isAuthenticated]
   );
@@ -505,12 +433,13 @@ export function ReportProvider({ children }: { children: ReactNode }) {
 
       setStore((prev) => {
         const remaining = prev.reports.filter((r) => r.id !== id);
+        const safeReports = remaining.length > 0 ? remaining : [EMPTY_REPORT];
         const nextActive =
           prev.activeReportId === id
-            ? remaining[0]?.id || "report-final"
+            ? safeReports[0].id
             : prev.activeReportId;
         return {
-          reports: remaining,
+          reports: safeReports,
           activeReportId: nextActive,
         };
       });
@@ -518,118 +447,59 @@ export function ReportProvider({ children }: { children: ReactNode }) {
     [isAuthenticated]
   );
 
+  const updateReport = useCallback(
+    (patch: Partial<ReportState>) => {
+      updateActiveReport(patch);
+    },
+    [updateActiveReport]
+  );
+
   const updateField = useCallback(
     <K extends keyof ReportState>(field: K, value: ReportState[K]) => {
-      setStore((prev) => ({
-        ...prev,
-        reports: prev.reports.map((r) =>
-          r.id === prev.activeReportId ? { ...r, [field]: value } : r
-        ),
-      }));
-      notifyChange();
+      updateActiveReport({ [field]: value } as Partial<ReportState>);
     },
-    [notifyChange]
+    [updateActiveReport]
   );
 
   const addAttachment = useCallback(
     (name: string, size?: string) => {
-      const newAttachment: Attachment = {
-        id: `att-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-        name,
-        status: "Uploaded",
-        size,
-      };
-      setStore((prev) => ({
-        ...prev,
-        reports: prev.reports.map((r) =>
-          r.id === prev.activeReportId
-            ? { ...r, attachments: [...r.attachments, newAttachment] }
-            : r
-        ),
+      const newAttachment = createAttachment(name, size);
+      updateActiveReport((r) => ({
+        attachments: [...r.attachments, newAttachment],
       }));
-      notifyChange();
     },
-    [notifyChange]
+    [updateActiveReport]
   );
 
   const removeAttachment = useCallback(
     (id: string) => {
-      setStore((prev) => ({
-        ...prev,
-        reports: prev.reports.map((r) =>
-          r.id === prev.activeReportId
-            ? {
-                ...r,
-                attachments: r.attachments.filter((item) => item.id !== id),
-              }
-            : r
-        ),
+      updateActiveReport((r) => ({
+        attachments: r.attachments.filter((item) => item.id !== id),
       }));
-      notifyChange();
     },
-    [notifyChange]
+    [updateActiveReport]
   );
 
   const toggleSupervisorFeedback = useCallback(() => {
-    setStore((prev) => ({
-      ...prev,
-      reports: prev.reports.map((r) =>
-        r.id === prev.activeReportId
-          ? {
-              ...r,
-              supervisorFeedbackRequested: !r.supervisorFeedbackRequested,
-            }
-          : r
-      ),
+    updateActiveReport((r) => ({
+      supervisorFeedbackRequested: !r.supervisorFeedbackRequested,
     }));
-    notifyChange();
-  }, [notifyChange]);
+  }, [updateActiveReport]);
 
   const saveDraft = useCallback(async () => {
-    const time = formatCurrentTime();
-    setStore((prev) => ({
-      ...prev,
-      reports: prev.reports.map((r) =>
-        r.id === prev.activeReportId ? { ...r, lastSavedAt: time } : r
-      ),
-    }));
+    updateActiveReport({ lastSavedAt: formatCurrentTime() });
     await flush();
-  }, [flush]);
+  }, [updateActiveReport, flush]);
 
-  const wordCount = useMemo(() => {
-    const trimmed = activeReport.tasksAndLearning.trim();
-    if (!trimmed) return 0;
-    return trimmed.split(/\s+/).filter(Boolean).length;
-  }, [activeReport.tasksAndLearning]);
+  const wordCount = useMemo(
+    () => calculateReportWordCount(activeReport.tasksAndLearning),
+    [activeReport.tasksAndLearning]
+  );
 
-  const checklist = useMemo(() => {
-    const isWorkplaceFilled = Boolean(
-      activeReport.company.trim() &&
-        activeReport.startDate &&
-        activeReport.endDate &&
-        String(activeReport.totalHours).trim()
-    );
-    const hasWorkCertificate = activeReport.attachments.length > 0;
-    const isWordCountMet = wordCount >= 300;
-    const isSupervisorFeedbackRequested = activeReport.supervisorFeedbackRequested;
-    const canSubmit = isWorkplaceFilled && hasWorkCertificate && isWordCountMet;
-
-    return {
-      isWorkplaceFilled,
-      hasWorkCertificate,
-      isWordCountMet,
-      isSupervisorFeedbackRequested,
-      canSubmit,
-    };
-  }, [
-    activeReport.company,
-    activeReport.startDate,
-    activeReport.endDate,
-    activeReport.totalHours,
-    activeReport.attachments.length,
-    wordCount,
-    activeReport.supervisorFeedbackRequested,
-  ]);
+  const checklist = useMemo(
+    () => calculateReportChecklist(activeReport, wordCount),
+    [activeReport, wordCount]
+  );
 
   const submitReport = useCallback(async (): Promise<{
     success: boolean;
@@ -647,93 +517,19 @@ export function ReportProvider({ children }: { children: ReactNode }) {
     const time = formatCurrentTime();
 
     if (isAuthenticated) {
-      const isNumericId = /^\d+$/.test(activeReport.id);
-      let tasks = activeReport.tasksAndLearning;
-      if (
-        typeof tasks === "string" &&
-        tasks.trim().startsWith('{"tasksAndLearning"')
-      ) {
-        try {
-          const unwrap = JSON.parse(tasks);
-          tasks = unwrap.tasksAndLearning ?? "";
-        } catch {
-          // ignore
-        }
-      }
-
-      const payload = {
-        title: activeReport.title,
-        company: activeReport.company,
-        startDate: activeReport.startDate,
-        endDate: activeReport.endDate,
-        totalHours: activeReport.totalHours,
-        tasksAndLearning: tasks,
-        attachments: activeReport.attachments,
-        supervisorFeedbackRequested: activeReport.supervisorFeedbackRequested,
-        status: "SUBMITTED" as const,
-      };
-
-      try {
-        if (isNumericId) {
-          await apiFetch(`/reports/${activeReport.id}`, {
-            method: "PATCH",
-            body: JSON.stringify(payload),
-          });
-        } else {
-          const res = await apiFetch<{ report: any }>("/reports", {
-            method: "POST",
-            body: JSON.stringify(payload),
-          });
-          if (res.report?.id) {
-            const newId = String(res.report.id);
-            setStore((prev) => ({
-              activeReportId: newId,
-              reports: prev.reports.map((r) =>
-                r.id === activeReport.id
-                  ? {
-                      ...r,
-                      id: newId,
-                      status: "submitted",
-                      submittedAt: formattedDate,
-                      lastSavedAt: time,
-                    }
-                  : r
-              ),
-            }));
-            if (typeof window !== "undefined") {
-              const url = new URL(window.location.href);
-              if (url.searchParams.get("id") === activeReport.id) {
-                url.searchParams.set("id", newId);
-                window.history.replaceState({}, "", url.toString());
-              }
-            }
-            return { success: true };
-          }
-        }
-      } catch (err) {
-        console.error("Failed to submit report to backend:", err);
+      const res = await persistReport(activeReport, "SUBMITTED");
+      if (!res.success) {
+        console.warn("Backend submit failed, continuing with local store submission update.");
       }
     }
 
-    setStore((prev) => ({
-      ...prev,
-      reports: prev.reports.map((r) =>
-        r.id === prev.activeReportId
-          ? {
-              ...r,
-              status: "submitted",
-              submittedAt: formattedDate,
-              lastSavedAt: time,
-            }
-          : r
-      ),
-    }));
+    updateActiveReport({
+      status: "submitted",
+      submittedAt: formattedDate,
+      lastSavedAt: time,
+    });
     return { success: true };
-  }, [checklist.canSubmit, isAuthenticated, activeReport]);
-
-  const resetReport = useCallback(() => {
-    setStore(DEFAULT_STORE);
-  }, []);
+  }, [checklist.canSubmit, isAuthenticated, activeReport, persistReport, updateActiveReport]);
 
   const value = useMemo(
     () => ({
@@ -741,16 +537,15 @@ export function ReportProvider({ children }: { children: ReactNode }) {
       activeReportId: store.activeReportId,
       report: activeReport,
       setActiveReportId,
-      getReport,
       createReport,
       deleteReport,
+      updateReport,
       updateField,
       addAttachment,
       removeAttachment,
       toggleSupervisorFeedback,
       saveDraft,
       submitReport,
-      resetReport,
       saveStatus,
       lastSavedAt: lastSavedAt || activeReport.lastSavedAt,
       wordCount,
@@ -761,16 +556,15 @@ export function ReportProvider({ children }: { children: ReactNode }) {
       store.activeReportId,
       activeReport,
       setActiveReportId,
-      getReport,
       createReport,
       deleteReport,
+      updateReport,
       updateField,
       addAttachment,
       removeAttachment,
       toggleSupervisorFeedback,
       saveDraft,
       submitReport,
-      resetReport,
       saveStatus,
       lastSavedAt,
       wordCount,

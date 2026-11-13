@@ -26,6 +26,31 @@ export class InternshipsController {
       next(error);
     }
   }
+
+  async getGuidanceEvaluation(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const internshipId = parseInt(String(req.params.id), 10);
+      const evaluation = await internshipsService.getGuidanceEvaluation(internshipId);
+      res.status(200).json({ evaluation });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async saveGuidanceEvaluation(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const internshipId = parseInt(String(req.params.id), 10);
+      const studentId = (req as any).user?.id || 1;
+      const evaluation = await internshipsService.saveGuidanceEvaluation(
+        internshipId,
+        studentId,
+        req.body
+      );
+      res.status(200).json({ evaluation });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const internshipsController = new InternshipsController();

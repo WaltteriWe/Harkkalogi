@@ -16,6 +16,7 @@ import {
   formatCurrentTime,
   type SaveStatus,
 } from "@/hooks/useAutoSave";
+import { registerDraftFlusher } from "@/lib/draft-registry";
 
 export interface LearningGoal {
   id: string;
@@ -23,6 +24,7 @@ export interface LearningGoal {
 }
 
 export interface PlanState {
+  scope: "h1" | "h2" | "combined";
   company: string;
   jobTitle: string;
   supervisorName: string;
@@ -44,26 +46,48 @@ export interface PlanState {
 export const MIN_DESCRIPTION_WORDS = 100;
 export const MIN_LEARNING_GOALS = 3;
 
-const DEFAULT_PLAN: PlanState = {
+export const EMPTY_PLAN: PlanState = {
+  scope: "h1",
   company: "",
   jobTitle: "",
   supervisorName: "",
   supervisorContact: "",
   startDate: "",
   endDate: "",
-  plannedHours: 800,
+  plannedHours: 400,
   hoursPerWeek: "",
   jobDescription: "",
   learningGoals: [],
   assessment: "",
   status: "draft",
-  lastSavedAt: "—",
+  lastSavedAt: "",
   submittedAt: null,
+  approvedAt: null,
+  teacherFeedback: "",
 };
+
+export const DEFAULT_PLAN: PlanState = EMPTY_PLAN;
 
 const STORAGE_KEY = "harkkalogi_plan_store_v1";
 
-let currentPlan: PlanState = DEFAULT_PLAN;
+function getStorageKey(): string {
+  if (typeof window !== "undefined") {
+    try {
+      const authUser = window.localStorage.getItem("harkkalogi_auth_user");
+      if (authUser) {
+        const parsed = JSON.parse(authUser);
+        if (parsed?.email) {
+          return `harkkalogi_plan_${parsed.email.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+        }
+      }
+    } catch {
+      // Ignore
+    }
+  }
+  return STORAGE_KEY;
+}
+
+let currentPlan: PlanState = EMPTY_PLAN;
 let isLoadedFromStorage = false;
 let listeners: Array<() => void> = [];
 
@@ -71,12 +95,17 @@ function loadFromStorage(): PlanState {
   if (isLoadedFromStorage) return currentPlan;
   if (typeof window !== "undefined") {
     try {
-      const stored = window.localStorage.getItem(STORAGE_KEY);
+      const key = getStorageKey();
+      const stored = window.localStorage.getItem(key);
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed && Array.isArray(parsed.learningGoals)) {
-          currentPlan = { ...DEFAULT_PLAN, ...parsed };
+          currentPlan = { ...EMPTY_PLAN, ...parsed };
+        } else {
+          currentPlan = EMPTY_PLAN;
         }
+      } else {
+        currentPlan = EMPTY_PLAN;
       }
     } catch {
       // Ignore
@@ -97,7 +126,8 @@ function setPlan(next: PlanState | ((prev: PlanState) => PlanState)) {
   currentPlan = resolved;
   if (typeof window !== "undefined") {
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(resolved));
+      const key = getStorageKey();
+      window.localStorage.setItem(key, JSON.stringify(resolved));
     } catch {
       // Ignore
     }
@@ -108,9 +138,10 @@ function setPlan(next: PlanState | ((prev: PlanState) => PlanState)) {
 function subscribe(listener: () => void) {
   listeners.push(listener);
   const handleStorageEvent = (event: StorageEvent) => {
-    if (event.key === STORAGE_KEY && event.newValue) {
+    const key = getStorageKey();
+    if (event.key === key && event.newValue) {
       try {
-        currentPlan = { ...DEFAULT_PLAN, ...JSON.parse(event.newValue) };
+        currentPlan = { ...EMPTY_PLAN, ...JSON.parse(event.newValue) };
         notify();
       } catch {
         // Ignore
@@ -135,11 +166,31 @@ function getSnapshot(): PlanState {
 }
 
 function getServerSnapshot(): PlanState {
-  return DEFAULT_PLAN;
+  return EMPTY_PLAN;
+}
+
+export function toPlanPayload(p: PlanState, status: "DRAFT" | "SUBMITTED") {
+  return {
+    scope: p.scope,
+    company: p.company,
+    jobTitle: p.jobTitle,
+    supervisorName: p.supervisorName,
+    supervisorContact: p.supervisorContact,
+    startDate: p.startDate,
+    endDate: p.endDate,
+    plannedHours: p.plannedHours,
+    hoursPerWeek: p.hoursPerWeek,
+    jobDescription: p.jobDescription,
+    learningGoals: p.learningGoals,
+    assessment: p.assessment,
+    status,
+  };
 }
 
 export interface PlanContextType {
   plan: PlanState;
+  setScope: (scope: "h1" | "h2" | "combined") => void;
+  updatePlan: (patch: Partial<PlanState>) => void;
   updateField: <K extends keyof PlanState>(field: K, value: PlanState[K]) => void;
   addGoal: () => void;
   updateGoal: (id: string, text: string) => void;
@@ -165,59 +216,49 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   const plan = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const { isAuthenticated } = useAuth();
 
-  // Load plan from backend on mount when authenticated
+  // Load plan from backend on mount when authenticated, or reset when logged out
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated) {
+      currentPlan = EMPTY_PLAN;
+      isLoadedFromStorage = false;
+      setPlan(EMPTY_PLAN);
+      return;
+    }
     let isMounted = true;
 
-    apiFetch<{ plan: any }>("/plans/my-plan")
+    // Force reload from user-specific storage when user is known
+    isLoadedFromStorage = false;
+    const initialForUser = loadFromStorage();
+    setPlan(initialForUser);
+
+    apiFetch<{ plan: Partial<PlanState> | null }>("/plans/my-plan")
       .then((data) => {
-        if (!isMounted || !data.plan) return;
+        if (!isMounted) return;
+        if (!data.plan) {
+          setPlan(EMPTY_PLAN);
+          return;
+        }
         const p = data.plan;
         setPlan((prev) => ({
           ...prev,
-          company:
-            p.company !== undefined && p.company !== null ? p.company : prev.company,
-          jobTitle:
-            p.jobTitle !== undefined && p.jobTitle !== null ? p.jobTitle : prev.jobTitle,
-          supervisorName:
-            p.supervisorName !== undefined && p.supervisorName !== null
-              ? p.supervisorName
-              : prev.supervisorName,
-          supervisorContact:
-            p.supervisorContact !== undefined && p.supervisorContact !== null
-              ? p.supervisorContact
-              : prev.supervisorContact,
-          startDate:
-            p.startDate !== undefined && p.startDate !== null ? p.startDate : prev.startDate,
-          endDate:
-            p.endDate !== undefined && p.endDate !== null ? p.endDate : prev.endDate,
-          plannedHours:
-            p.plannedHours !== undefined && p.plannedHours !== null
-              ? p.plannedHours
-              : prev.plannedHours,
-          hoursPerWeek:
-            p.hoursPerWeek !== undefined && p.hoursPerWeek !== null
-              ? p.hoursPerWeek
-              : prev.hoursPerWeek,
-          jobDescription:
-            p.jobDescription !== undefined && p.jobDescription !== null
-              ? p.jobDescription
-              : prev.jobDescription,
+          scope: p.scope || prev.scope || "h1",
+          company: p.company ?? prev.company,
+          jobTitle: p.jobTitle ?? prev.jobTitle,
+          supervisorName: p.supervisorName ?? prev.supervisorName,
+          supervisorContact: p.supervisorContact ?? prev.supervisorContact,
+          startDate: p.startDate ?? prev.startDate,
+          endDate: p.endDate ?? prev.endDate,
+          plannedHours: p.plannedHours ?? prev.plannedHours,
+          hoursPerWeek: p.hoursPerWeek ?? prev.hoursPerWeek,
+          jobDescription: p.jobDescription ?? prev.jobDescription,
           learningGoals: Array.isArray(p.learningGoals)
             ? p.learningGoals
             : prev.learningGoals,
-          assessment:
-            p.assessment !== undefined && p.assessment !== null
-              ? p.assessment
-              : prev.assessment,
+          assessment: p.assessment ?? prev.assessment,
           status: p.status || prev.status,
           submittedAt: p.submittedAt ? p.submittedAt.split("T")[0] : prev.submittedAt,
           approvedAt: p.approvedAt ? p.approvedAt.split("T")[0] : prev.approvedAt,
-          teacherFeedback:
-            p.teacherFeedback !== undefined && p.teacherFeedback !== null
-              ? p.teacherFeedback
-              : prev.teacherFeedback,
+          teacherFeedback: p.teacherFeedback ?? prev.teacherFeedback,
         }));
       })
       .catch((err) => {
@@ -235,20 +276,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
 
       await apiFetch("/plans/my-plan", {
         method: "PATCH",
-        body: JSON.stringify({
-          company: p.company,
-          jobTitle: p.jobTitle,
-          supervisorName: p.supervisorName,
-          supervisorContact: p.supervisorContact,
-          startDate: p.startDate,
-          endDate: p.endDate,
-          plannedHours: p.plannedHours,
-          hoursPerWeek: p.hoursPerWeek,
-          jobDescription: p.jobDescription,
-          learningGoals: p.learningGoals,
-          assessment: p.assessment,
-          status: "DRAFT",
-        }),
+        body: JSON.stringify(toPlanPayload(p, "DRAFT")),
         keepalive: isBackground,
       });
     },
@@ -266,6 +294,42 @@ export function PlanProvider({ children }: { children: ReactNode }) {
     debounceMs: 1500,
     enabled: isAuthenticated && plan.status === "draft",
   });
+
+  // Register flusher for pre-logout draft sync
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    return registerDraftFlusher(async (): Promise<boolean> => {
+      if (plan.status !== "draft" || saveStatus === "saved") {
+        return true;
+      }
+      try {
+        await flush();
+        return true;
+      } catch {
+        return false;
+      }
+    });
+  }, [isAuthenticated, plan.status, saveStatus, flush]);
+
+  const setScope = useCallback(
+    (scope: "h1" | "h2" | "combined") => {
+      setPlan((prev) => ({
+        ...prev,
+        scope,
+        plannedHours: scope === "combined" ? 800 : 400,
+      }));
+      notifyChange();
+    },
+    [notifyChange]
+  );
+
+  const updatePlan = useCallback(
+    (patch: Partial<PlanState>) => {
+      setPlan((prev) => ({ ...prev, ...patch }));
+      notifyChange();
+    },
+    [notifyChange]
+  );
 
   const updateField = useCallback(
     <K extends keyof PlanState>(field: K, value: PlanState[K]) => {
@@ -376,20 +440,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       try {
         await apiFetch("/plans/my-plan", {
           method: "PATCH",
-          body: JSON.stringify({
-            company: plan.company,
-            jobTitle: plan.jobTitle,
-            supervisorName: plan.supervisorName,
-            supervisorContact: plan.supervisorContact,
-            startDate: plan.startDate,
-            endDate: plan.endDate,
-            plannedHours: plan.plannedHours,
-            hoursPerWeek: plan.hoursPerWeek,
-            jobDescription: plan.jobDescription,
-            learningGoals: plan.learningGoals,
-            assessment: plan.assessment,
-            status: "SUBMITTED",
-          }),
+          body: JSON.stringify(toPlanPayload(plan, "SUBMITTED")),
         });
       } catch (err) {
         console.error("Failed to submit plan to backend:", err);
@@ -406,12 +457,18 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   }, [checklist.canSubmit, isAuthenticated, plan]);
 
   const resetPlan = useCallback(() => {
-    setPlan(DEFAULT_PLAN);
+    if (typeof window !== "undefined") {
+      const key = getStorageKey();
+      window.localStorage.removeItem(key);
+    }
+    setPlan(EMPTY_PLAN);
   }, []);
 
   const value = useMemo(
     () => ({
       plan,
+      setScope,
+      updatePlan,
       updateField,
       addGoal,
       updateGoal,
@@ -426,6 +483,8 @@ export function PlanProvider({ children }: { children: ReactNode }) {
     }),
     [
       plan,
+      setScope,
+      updatePlan,
       updateField,
       addGoal,
       updateGoal,

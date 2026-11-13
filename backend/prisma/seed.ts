@@ -27,6 +27,13 @@ async function main() {
       passwordHash,
     },
     {
+      email: "sara.niemi@metropolia.fi",
+      name: "Sara Niemi",
+      role: Role.STUDENT,
+      studyType: StudyType.DAYTIME,
+      passwordHash,
+    },
+    {
       email: "ville.virtanen@metropolia.fi",
       name: "Ville Virtanen",
       role: Role.STUDENT,
@@ -78,6 +85,7 @@ async function main() {
   }
 
   const aino = userMap.get("aino.korhonen@metropolia.fi");
+  const sara = userMap.get("sara.niemi@metropolia.fi");
   const mikko = userMap.get("mikko.laine@metropolia.fi");
   const ville = userMap.get("ville.virtanen@metropolia.fi");
 
@@ -126,6 +134,74 @@ async function main() {
       },
     });
     console.log(`Seeded unassigned internship for Ville Virtanen (teacherId: null)`);
+  }
+
+  // Seed fresh Step 1 Internship for Sara Niemi with Mikko Laine as supervising teacher
+  if (sara) {
+    // Reset Sara's data so re-running seed provides an idempotent clean slate
+    await (prisma as any).guidanceEvaluation?.deleteMany({ where: { studentId: sara.id } });
+    await prisma.report.deleteMany({
+      where: { internship: { studentId: sara.id } },
+    });
+    await prisma.plan.deleteMany({ where: { studentId: sara.id } });
+
+    let saraInternship = await prisma.internship.findFirst({
+      where: { studentId: sara.id },
+    });
+
+    if (!saraInternship) {
+      saraInternship = await prisma.internship.create({
+        data: {
+          title: "Harjoittelu 1",
+          order: 1,
+          credits: 15,
+          requiredHours: 400,
+          company: "",
+          description: "Harjoittelu 1 (15 op)",
+          startDate: new Date("2026-09-01T08:00:00Z"),
+          status: InternshipStatus.ONGOING,
+          studentId: sara.id,
+          teacherId: mikko.id,
+        },
+      });
+      console.log(`Seeded fresh Step 1 internship for Sara Niemi with supervisor Mikko Laine`);
+    } else {
+      saraInternship = await prisma.internship.update({
+        where: { id: saraInternship.id },
+        data: {
+          title: "Harjoittelu 1",
+          order: 1,
+          credits: 15,
+          requiredHours: 400,
+          company: "",
+          teacherId: mikko.id,
+          status: InternshipStatus.ONGOING,
+        },
+      });
+    }
+
+    // Seed welcome guidance message from Mikko to Sara
+    const existingSaraMsg = await prisma.message.findFirst({
+      where: {
+        senderId: mikko.id,
+        recipientId: sara.id,
+      },
+    });
+
+    if (!existingSaraMsg) {
+      await prisma.message.create({
+        data: {
+          subject: "Tervetuloa harjoitteluun!",
+          body: "Hei Sara,\n\nOlen nimetty harjoittelusi valvojaksi. Aloita täyttämällä harjoittelusuunnitelma suunnittelunäkymässä ja lähetä se minulle hyväksyttäväksi ennen harjoittelun alkua.\n\nTerveisin,\nMikko Laine",
+          read: false,
+          senderId: mikko.id,
+          recipientId: sara.id,
+          internshipId: saraInternship.id,
+          parentId: null,
+        },
+      });
+      console.log("Seeded welcome message from Mikko Laine to Sara Niemi");
+    }
   }
 
   // Seed initial conversation messages between Mikko and Aino

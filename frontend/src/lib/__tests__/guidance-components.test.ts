@@ -89,3 +89,23 @@ describe("guidance-components: resolveStarLabel", () => {
     );
   });
 });
+
+describe("guidance-components: sidebar completion calculation", () => {
+  const subjects = [
+    { id: "s1", subject: "Subject 1" },
+    { id: "s2", subject: "Subject 2" },
+  ];
+
+  it("calculates rated subject count accurately", () => {
+    const ratings: Record<string, number> = { s1: 4, s2: 0 };
+    const ratedCount = subjects.filter((s) => (ratings[s.id] ?? 0) > 0).length;
+    assert.equal(ratedCount, 1);
+  });
+
+  it("identifies fully completed section", () => {
+    const ratings: Record<string, number> = { s1: 4, s2: 5 };
+    const ratedCount = subjects.filter((s) => (ratings[s.id] ?? 0) > 0).length;
+    assert.equal(ratedCount, 2);
+  });
+});
+

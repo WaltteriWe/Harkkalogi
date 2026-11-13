@@ -4,6 +4,7 @@ import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useLoginForm } from "@/hooks/useLoginForm";
 import { useAuth } from "@/context/AuthContext";
+import { DemoAccountsCard } from "./DemoAccountsCard";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -92,6 +93,14 @@ export default function LoginPage() {
             </button>
           </form>
         </div>
+
+        {/* Demo accounts card (can be removed when moving to production) */}
+        <DemoAccountsCard
+          onSelectAccount={(selectedEmail, selectedPassword) => {
+            setEmail(selectedEmail);
+            setPassword(selectedPassword);
+          }}
+        />
       </div>
     </div>
   );

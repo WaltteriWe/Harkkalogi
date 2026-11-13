@@ -8,6 +8,7 @@ import { reportsRoutes } from "./modules/reports/index.ts";
 import { messagesRoutes } from "./modules/messages/index.ts";
 import { internshipsRoutes } from "./modules/internships/index.ts";
 import { plansRoutes } from "./modules/plans/index.ts";
+import { demoRoutes } from "./modules/demo/index.ts";
 
 export function createApp(): Express {
   const app = express();
@@ -45,6 +46,11 @@ export function createApp(): Express {
   app.use("/api/messages", messagesRoutes);
   app.use("/api/internships", internshipsRoutes);
   app.use("/api/plans", plansRoutes);
+
+  // Demo features (isolated; guarded against production)
+  if (env.NODE_ENV !== "production") {
+    app.use("/api/demo", demoRoutes);
+  }
 
   // Global error handler (must be registered after routes)
   app.use(errorHandler);

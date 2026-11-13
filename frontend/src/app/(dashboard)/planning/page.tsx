@@ -32,6 +32,7 @@ function ChecklistIcon({ done }: { done: boolean }) {
 export default function PlanningPage() {
   const {
     plan,
+    setScope,
     updateField,
     addGoal,
     updateGoal,
@@ -164,6 +165,65 @@ export default function PlanningPage() {
         {/* Left Column: Form Sections */}
         <div className="flex flex-col gap-6">
           <section className="card flex flex-col gap-8">
+            {/* 0. Internship scope */}
+            <div>
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-semibold text-ink">
+                  Harjoittelujakso ja laajuus
+                </h2>
+                <span className="meta text-xs">Asettaa tavoitetunnit ja vaiheet</span>
+              </div>
+              <p className="meta mt-1 text-xs text-ink-muted">
+                Valitse kumpaa harjoittelujaksoa tämä suunnitelma koskee tai suoritatko koko 30 op harjoittelun kerralla.
+              </p>
+
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <button
+                  type="button"
+                  disabled={isApproved}
+                  onClick={() => setScope("h1")}
+                  className={`flex flex-col text-left rounded-card border p-3 transition-all cursor-pointer ${
+                    (plan.scope || "h1") === "h1"
+                      ? "border-brand bg-brand-soft/40 ring-2 ring-brand-soft"
+                      : "border-border bg-surface hover:bg-surface-muted/60"
+                  }`}
+                >
+                  <span className="text-sm font-semibold text-ink">Harjoittelu 1</span>
+                  <span className="meta text-xs text-ink-muted">15 op · 400 tuntia</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isApproved}
+                  onClick={() => setScope("h2")}
+                  className={`flex flex-col text-left rounded-card border p-3 transition-all cursor-pointer ${
+                    plan.scope === "h2"
+                      ? "border-brand bg-brand-soft/40 ring-2 ring-brand-soft"
+                      : "border-border bg-surface hover:bg-surface-muted/60"
+                  }`}
+                >
+                  <span className="text-sm font-semibold text-ink">Harjoittelu 2</span>
+                  <span className="meta text-xs text-ink-muted">15 op · 400 tuntia</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isApproved}
+                  onClick={() => setScope("combined")}
+                  className={`flex flex-col text-left rounded-card border p-3 transition-all cursor-pointer ${
+                    plan.scope === "combined"
+                      ? "border-brand bg-brand-soft/40 ring-2 ring-brand-soft"
+                      : "border-border bg-surface hover:bg-surface-muted/60"
+                  }`}
+                >
+                  <span className="text-sm font-semibold text-ink">Koko harjoittelu</span>
+                  <span className="meta text-xs text-ink-muted">30 op · 800 tuntia</span>
+                </button>
+              </div>
+            </div>
+
+            <hr className="border-border" />
+
             {/* 1. Workplace and supervisor */}
             <div>
               <h2 className="text-base font-semibold text-ink">

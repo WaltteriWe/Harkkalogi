@@ -4,11 +4,13 @@ import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useReport } from "@/context/ReportContext";
+import { useInternship } from "@/context/InternshipContext";
 import { formatPeriod } from "@/lib/dates";
 
 export default function ReportsPage() {
   const router = useRouter();
   const { reports, createReport, deleteReport } = useReport();
+  const { targetHours } = useInternship();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newReportTitle, setNewReportTitle] = useState("");
   const [notification, setNotification] = useState<string | null>(null);
@@ -31,7 +33,7 @@ export default function ReportsPage() {
   const handleCreateNew = async (e: React.FormEvent) => {
     e.preventDefault();
     const titleToUse = newReportTitle.trim() || "New report";
-    const newId = await createReport(titleToUse);
+    const newId = await createReport(titleToUse, targetHours);
     setShowCreateModal(false);
     setNewReportTitle("");
     router.push(`/report?id=${newId}`);
@@ -223,8 +225,7 @@ export default function ReportsPage() {
                                 : "Edit draft →"}
                           </Link>
 
-                          {item.status === "draft" &&
-                            item.id !== "report-final" && (
+                          {item.status === "draft" && (
                               <button
                                 type="button"
                                 onClick={() =>

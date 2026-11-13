@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React from "react";
 import ReportingProgress from "@/components/reportingProgress";
+import InternshipSelector from "@/components/internshipSelector";
 import { useReport } from "@/context/ReportContext";
+import { useInternship } from "@/context/InternshipContext";
 import { formatPeriod } from "@/lib/dates";
 
 const contacts = [
@@ -12,33 +14,42 @@ const contacts = [
 
 export default function Home() {
   const { report } = useReport();
+  const {
+    activeInternship,
+    targetHours,
+    loggedHours,
+    remainingHours,
+    isPlanSubmitted,
+  } = useInternship();
 
-  const hoursTotal = useMemo(() => {
-    const parsed = Number(report.totalHours);
-    return isNaN(parsed) || parsed <= 0 ? 800 : parsed;
-  }, [report.totalHours]);
-
-  const hoursLogged = useMemo(() => {
-    return report.status === "submitted" ? hoursTotal : 640;
-  }, [report.status, hoursTotal]);
-
-  const remainingHours = Math.max(0, hoursTotal - hoursLogged);
   const progressPercent = Math.min(
     100,
-    Math.round((hoursLogged / hoursTotal) * 100),
+    Math.round((loggedHours / targetHours) * 100)
   );
 
   return (
-    <>
-      <header className="flex items-start justify-between gap-4">
+    <div className="flex flex-col gap-6">
+      <header className="flex flex-col gap-4">
         <div>
           <h1>My internship</h1>
-          <p className="meta mt-2 text-base">
-            Practical training · Frontend developer at{" "}
-            {report.company || "Nordic Pixel Oy"} ·{" "}
-            {formatPeriod(report.startDate, report.endDate) || "1.6.–30.11.2026"}
+          <p className="meta mt-1 text-base">
+            Practical training
+            {isPlanSubmitted ? (
+              <>
+                {" "}· {activeInternship.title}
+                {activeInternship.company && ` · ${activeInternship.company}`}
+                {report.startDate && report.endDate && (
+                  <> · {formatPeriod(report.startDate, report.endDate)}</>
+                )}
+              </>
+            ) : (
+              <> · Tutkintovaatimus: 30 op (800 h) · Suunnitelma kesken</>
+            )}
           </p>
         </div>
+
+        {/* Internship Switcher (Harjoittelu 1 & 2 or Combined) */}
+        <InternshipSelector />
       </header>
 
       {/* 2-Column Balanced Dashboard Layout */}
@@ -52,14 +63,14 @@ export default function Home() {
           <div>
             <p className="label">Hours logged</p>
             <p className="mt-2">
-              <span className="tabular text-4xl">{hoursLogged}</span>{" "}
-              <span className="meta tabular text-base">/ {hoursTotal} h</span>
+              <span className="tabular text-4xl">{loggedHours}</span>{" "}
+              <span className="meta tabular text-base">/ {targetHours} h</span>
             </p>
             <div
               className="progress-track mt-3"
               role="progressbar"
-              aria-valuenow={hoursLogged}
-              aria-valuemax={hoursTotal}
+              aria-valuenow={loggedHours}
+              aria-valuemax={targetHours}
               aria-label="Hours logged"
             >
               <div
@@ -90,6 +101,6 @@ export default function Home() {
           </div>
         </section>
       </div>
-    </>
+    </div>
   );
 }

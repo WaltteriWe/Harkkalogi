@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import { useReport } from "@/context/ReportContext";
 
 interface QueueItem {
   id: string;
@@ -60,15 +59,10 @@ const INITIAL_QUEUE_ITEMS: QueueItem[] = [
 ];
 
 export default function TeacherReviewQueuePage() {
-  const { reports } = useReport();
   const [queue, setQueue] = useState<QueueItem[]>(INITIAL_QUEUE_ITEMS);
   const [selectedReport, setSelectedReport] = useState<QueueItem | null>(null);
   const [feedbackText, setFeedbackText] = useState("");
   const [actionNotice, setActionNotice] = useState<string | null>(null);
-
-  // Check if Aino submitted her final report from the ReportContext
-  const ainoFinal = reports.find((r) => r.id === "report-final");
-  const ainoStatus = ainoFinal?.status === "submitted" ? "needs_review" : "needs_review";
 
   const handleApprove = (id: string, studentName: string) => {
     setQueue((prev) =>
@@ -190,7 +184,7 @@ export default function TeacherReviewQueuePage() {
                   </td>
 
                   <td>
-                    {getStatusBadge(item.id === "q-1" ? ainoStatus : item.status)}
+                    {getStatusBadge(item.status)}
                   </td>
 
                   <td className="text-right">
