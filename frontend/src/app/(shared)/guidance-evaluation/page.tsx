@@ -7,6 +7,9 @@ import { useReport } from "@/context/ReportContext";
 import { useInternship } from "@/context/InternshipContext";
 import { registerDraftFlusher } from "@/lib/draft-registry";
 import LockedNoticeCard from "@/components/lockedNoticeCard";
+import StepStatusBanner from "@/components/stepStatusBanner";
+import SubmissionChecklist from "@/components/submissionChecklist";
+import ProcessPageHeader from "@/components/processPageHeader";
 import {
   CheckboxGroup,
   type CheckboxItem,
@@ -127,35 +130,16 @@ const TEACHER_SAMPLE_RATINGS: Record<string, number> = {
   kokonaisarvio: 5,
 };
 
-function ChecklistIcon({ done }: { done: boolean }) {
-  return done ? (
-    <span className="step-icon-done shrink-0" aria-label="Completed">
-      <svg
-        className="size-3.5 stroke-white"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <polyline points="20 6 9 17 4 12" />
-      </svg>
-    </span>
-  ) : (
-    <span className="step-icon-todo shrink-0" aria-label="To do" />
-  );
-}
-
 export default function GuidanceEvaluationPage() {
   const { user } = useAuth();
-  const { report } = useReport();
+  const { report, reports } = useReport();
   const { isEvaluationLocked: isWorkflowLocked } = useInternship();
   const isTeacher = user?.role === "teacher";
   const leaveHref = isTeacher ? "/teacher-view" : "/";
   const leaveLabel = isTeacher ? "← Back to teacher view" : "← Back to overview";
 
-  const isActualReportApproved = report?.status === "approved";
+  const isActualReportApproved =
+    reports.some((r) => r.status === "approved") || report?.status === "approved";
   // Interactive test toggle: allows switching between "Lomake auki (ON)" and "Esikatselu (OFF)" during testing
   const [testUnlockedOverride, setTestUnlockedOverride] = useState<boolean | null>(null);
 
@@ -226,27 +210,25 @@ export default function GuidanceEvaluationPage() {
   return (
     <div className="flex flex-col gap-6 pb-12">
       {/* Header section with leave button and titles */}
-      <div>
-        <Link
-          href={leaveHref}
-          className="link-quiet inline-flex items-center gap-1.5 text-sm"
-        >
-          {leaveLabel}
-        </Link>
-
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-4">
-          <h1 className="text-3xl font-bold tracking-tight text-ink">
-            Harjoittelun ohjauksen arviointi
-          </h1>
-          <span className="pill-neutral text-sm px-3 py-1">
-            Step 6 of 6 · Guidance evaluation
-          </span>
-        </div>
-
-        <p className="meta mt-1 text-sm text-ink-muted">
-          Post-internship evaluation for workplace supervision and academic guidance
-        </p>
-      </div>
+      <ProcessPageHeader
+        title="Harjoittelun ohjauksen arviointi"
+        backHref={leaveHref}
+        backLabel={leaveLabel}
+        statusBadge={
+          isTeacher ? (
+            <span className="pill-info text-sm px-3 py-1">Teacher view</span>
+          ) : isLocked ? (
+            <span className="pill-neutral text-sm px-3 py-1">
+              Step 6 of 6 · Guidance evaluation
+            </span>
+          ) : (
+            <span className="pill-success text-sm px-3 py-1">
+              Ready for submission
+            </span>
+          )
+        }
+        subtitle="Post-internship evaluation for workplace supervision and academic guidance"
+      />
 
       {/* Role and Status Context Banner / Locked Notice Card */}
       {isLocked && !isTeacher ? (
@@ -256,41 +238,26 @@ export default function GuidanceEvaluationPage() {
           message="Tämä arviointi aukeaa, kun ohjaava opettaja on hyväksynyt loppuraporttisi."
           timelineHref="/"
           timelineLabel="Katso aikajana yleisnäkymässä"
-          currentStepHref="/reports"
+          currentStepHref="/report"
           currentStepLabel="Siirry nykyiseen vaiheeseen: Raportti"
         />
       ) : (
-        <section className="rounded-card border border-border bg-surface p-5">
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <span
-                  className={`size-2.5 rounded-full ${
-                    isTeacher ? "bg-info" : "bg-success"
-                  }`}
-                />
-                <h2 className="text-sm font-semibold text-ink">
-                  {isTeacher
-                    ? "Ohjaavan opettajan näkymä (Read-only review)"
-                    : "Harjoitteluraportti hyväksytty · Lomake auki"}
-                </h2>
-              </div>
-              <p className="mt-1 text-sm text-ink-muted leading-relaxed">
-                {isTeacher
-                  ? "Tarkastelet opiskelijan täyttämää ohjauksen arviointia ja palautetta lukutilassa."
-                  : "Harjoitteluraporttisi on hyväksytty. Voit nyt täyttää ja vahvistaa ohjauksen arvioinnin."}
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-              <span
-                className={isTeacher ? "pill-info shrink-0" : "pill-success shrink-0"}
-              >
-                {isTeacher ? "Teacher view" : "Ready for submission"}
-              </span>
-            </div>
-          </div>
-        </section>
+        <StepStatusBanner
+          step="evaluation"
+          variant={isTeacher ? "review" : "feedback"}
+          title={
+            isTeacher
+              ? "Ohjaavan opettajan näkymä (Read-only review)"
+              : "Harjoitteluraportti hyväksytty · Lomake auki"
+          }
+          description={
+            isTeacher
+              ? "Tarkastelet opiskelijan täyttämää ohjauksen arviointia ja palautetta lukutilassa."
+              : "Harjoitteluraporttisi on hyväksytty. Voit nyt täyttää ja vahvistaa ohjauksen arvioinnin."
+          }
+          badge={isTeacher ? "Teacher view" : "Ready for submission"}
+          showDot={true}
+        />
       )}
 
       {/* Feedback message banner if present */}
@@ -410,53 +377,52 @@ export default function GuidanceEvaluationPage() {
         </div>
 
         {/* Right Column: Submission Checklist */}
-        <aside className="card flex flex-col gap-5 sticky top-6">
-          <h2 className="text-base font-semibold text-ink">
-            {isTeacher ? "Arvioinnin tila" : "Ennen lähetystä"}
-          </h2>
-
-          <ul className="flex flex-col gap-3.5 text-sm">
-            <li className="flex items-center gap-3">
-              <ChecklistIcon done={isChecklistFilled} />
-              <span className="text-ink">
-                Kehityskohteet merkitty{" "}
-                <span className="text-ink-muted">
-                  ({selectedCheckboxes.length}/{ASIAT_TARKEMMIN_ITEMS.length})
-                </span>
-              </span>
-            </li>
-
-            <li className="flex items-center gap-3">
-              <ChecklistIcon done={isWorkplaceComplete} />
-              <span className="text-ink">
-                Työpaikan ohjaus arvioitu{" "}
-                <span className="text-ink-muted">
-                  ({workplaceRatedCount}/{TYOPAIKKA_OHJAUS_SUBJECTS.length})
-                </span>
-              </span>
-            </li>
-
-            <li className="flex items-center gap-3">
-              <ChecklistIcon done={isInstitutionComplete} />
-              <span className="text-ink">
-                Oppilaitoksen tuki arvioitu{" "}
-                <span className="text-ink-muted">
-                  ({institutionRatedCount}/{OPPILAITOS_OHJAUS_SUBJECTS.length})
-                </span>
-              </span>
-            </li>
-          </ul>
-
-          {/* Context guidance note matching Plan and Report */}
-          <div className="mt-1 rounded-control bg-brand-soft p-4 text-sm text-brand-ink leading-relaxed">
-            <p className="font-semibold text-xs tracking-wider uppercase mb-1">
-              Palaute kehittää ohjausta
-            </p>
-            <p>
-              Vastauksesi auttavat kehittämään harjoittelupaikkojen ohjauskäytäntöjä ja Metropolian harjoittelun tukipalveluita tuleville opiskelijoille.
-            </p>
-          </div>
-        </aside>
+        <SubmissionChecklist
+          title={isTeacher ? "Arvioinnin tila" : "Ennen lähetystä"}
+          sticky={true}
+          items={[
+            {
+              id: "topics",
+              done: isChecklistFilled,
+              label: (
+                <>
+                  Kehityskohteet merkitty{" "}
+                  <span className="text-ink-muted">
+                    ({selectedCheckboxes.length}/{ASIAT_TARKEMMIN_ITEMS.length})
+                  </span>
+                </>
+              ),
+            },
+            {
+              id: "workplace",
+              done: isWorkplaceComplete,
+              label: (
+                <>
+                  Työpaikan ohjaus arvioitu{" "}
+                  <span className="text-ink-muted">
+                    ({workplaceRatedCount}/{TYOPAIKKA_OHJAUS_SUBJECTS.length})
+                  </span>
+                </>
+              ),
+            },
+            {
+              id: "institution",
+              done: isInstitutionComplete,
+              label: (
+                <>
+                  Oppilaitoksen tuki arvioitu{" "}
+                  <span className="text-ink-muted">
+                    ({institutionRatedCount}/{OPPILAITOS_OHJAUS_SUBJECTS.length})
+                  </span>
+                </>
+              ),
+            },
+          ]}
+          note={{
+            title: "Palaute kehittää ohjausta",
+            text: "Vastauksesi auttavat kehittämään harjoittelupaikkojen ohjauskäytäntöjä ja Metropolian harjoittelun tukipalveluita tuleville opiskelijoille.",
+          }}
+        />
       </div>
     </div>
   );

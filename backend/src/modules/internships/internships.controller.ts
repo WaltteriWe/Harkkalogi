@@ -4,7 +4,12 @@ import { internshipsService } from "./internships.service.ts";
 export class InternshipsController {
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const studentId = req.query.studentId ? parseInt(req.query.studentId as string, 10) : undefined;
+      const user = (req as any).user;
+      const studentId = req.query.studentId
+        ? parseInt(req.query.studentId as string, 10)
+        : user?.role === "STUDENT"
+        ? user.id
+        : undefined;
       const teacherId = req.query.teacherId ? parseInt(req.query.teacherId as string, 10) : undefined;
       const internships = await internshipsService.listInternships({ studentId, teacherId });
       res.status(200).json({ internships });

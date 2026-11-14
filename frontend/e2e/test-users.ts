@@ -15,6 +15,13 @@ export const TEST_USERS = {
     name: "Sara Niemi",
     heading: "My internship",
   },
+  guidanceStudent: {
+    email: "matias.koskinen@metropolia.fi",
+    password: "password123",
+    landingPath: "/",
+    name: "Matias Koskinen",
+    heading: "My internship",
+  },
   teacher: {
     email: "mikko.laine@metropolia.fi",
     password: "password123",

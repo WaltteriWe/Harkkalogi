@@ -8,26 +8,9 @@ import {
   MIN_LEARNING_GOALS,
 } from "@/context/PlanContext";
 import DateInput from "@/components/dateInput";
-
-function ChecklistIcon({ done }: { done: boolean }) {
-  return done ? (
-    <span className="step-icon-done shrink-0" aria-label="Completed">
-      <svg
-        className="size-3.5 stroke-white"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <polyline points="20 6 9 17 4 12" />
-      </svg>
-    </span>
-  ) : (
-    <span className="step-icon-todo shrink-0" aria-label="To do" />
-  );
-}
+import StepStatusBanner from "@/components/stepStatusBanner";
+import SubmissionChecklist from "@/components/submissionChecklist";
+import ProcessPageHeader from "@/components/processPageHeader";
 
 export default function PlanningPage() {
   const {
@@ -83,29 +66,11 @@ export default function PlanningPage() {
   return (
     <>
       {/* Header section */}
-      <div>
-        <Link href="/" className="link-quiet inline-flex items-center gap-1.5 text-sm">
-          ← Back to overview
-        </Link>
-
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-4">
-          <h1 className="text-3xl font-bold tracking-tight text-ink">
-            Internship plan
-          </h1>
-
-          <div>
-            {isApproved ? (
-              <span className="pill-success text-sm px-3 py-1">Approved</span>
-            ) : isSubmitted ? (
-              <span className="pill-info text-sm px-3 py-1">Submitted</span>
-            ) : (
-              <span className="pill-neutral text-sm px-3 py-1">Draft</span>
-            )}
-          </div>
-        </div>
-
-        <p className="meta mt-1 text-sm text-ink-muted">
-          {isApproved
+      <ProcessPageHeader
+        title="Internship plan"
+        status={plan.status}
+        subtitle={
+          isApproved
             ? `Approved on ${plan.approvedAt || "earlier"}`
             : isSubmitted
               ? `Submitted on ${plan.submittedAt || "recently"}`
@@ -115,9 +80,9 @@ export default function PlanningPage() {
                   ? "Unsaved changes..."
                   : saveStatus === "error"
                     ? "Draft save failed · saved locally"
-                    : `Draft saved automatically · last saved ${lastSavedAt || plan.lastSavedAt}`}
-        </p>
-      </div>
+                    : `Draft saved automatically · last saved ${lastSavedAt || plan.lastSavedAt}`
+        }
+      />
 
       {/* Feedback message banner if present */}
       {notification && (
@@ -134,31 +99,13 @@ export default function PlanningPage() {
         </div>
       )}
 
-      {/* Approved banner with teacher feedback */}
-      {isApproved && (
-        <div className="rounded-control bg-success-soft border border-success/20 p-4 text-sm text-success flex flex-col gap-1.5">
-          <div className="flex items-center justify-between">
-            <p className="font-semibold text-base">Plan approved by your teacher</p>
-            <span className="pill-success">Approved</span>
-          </div>
-          {plan.teacherFeedback && (
-            <p className="text-ink leading-relaxed mt-1">{plan.teacherFeedback}</p>
-          )}
-        </div>
-      )}
-
-      {/* Submission banner if under review */}
-      {isSubmitted && !isApproved && (
-        <div className="rounded-control bg-info-soft border border-info/20 p-4 text-sm text-info flex items-center justify-between">
-          <div>
-            <p className="font-semibold">Plan is waiting for teacher approval</p>
-            <p className="mt-0.5">
-              Submitted on {plan.submittedAt || "recently"}. You can still update your plan below.
-            </p>
-          </div>
-          <span className="pill-info">Submitted</span>
-        </div>
-      )}
+      {/* Step status banner (feedback or review) */}
+      <StepStatusBanner
+        step="plan"
+        status={plan.status}
+        submittedAt={plan.submittedAt}
+        feedback={plan.teacherFeedback}
+      />
 
       {/* Main 2-column content layout */}
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[1fr_21rem]">
@@ -472,47 +419,41 @@ export default function PlanningPage() {
         </div>
 
         {/* Right Column: Submission Checklist */}
-        <aside className="card flex flex-col gap-5">
-          <h2 className="text-base font-semibold text-ink">
-            {isApproved ? "Plan status" : "Before you submit"}
-          </h2>
-
-          <ul className="flex flex-col gap-3.5 text-sm">
-            <li className="flex items-center gap-3">
-              <ChecklistIcon done={checklist.isWorkplaceFilled} />
-              <span className="text-ink">Workplace and supervisor filled in</span>
-            </li>
-
-            <li className="flex items-center gap-3">
-              <ChecklistIcon done={checklist.isPeriodFilled} />
-              <span className="text-ink">Period and hours filled in</span>
-            </li>
-
-            <li className="flex items-center gap-3">
-              <ChecklistIcon done={checklist.isWordCountMet} />
-              <span className="text-ink">
-                Job description at least {MIN_DESCRIPTION_WORDS} words{" "}
-                <span className="text-ink-muted">(now {wordCount})</span>
-              </span>
-            </li>
-
-            <li className="flex items-center gap-3">
-              <ChecklistIcon done={checklist.hasEnoughGoals} />
-              <span className="text-ink">
-                At least {MIN_LEARNING_GOALS} learning goals
-              </span>
-            </li>
-          </ul>
-
-          {/* Orange note banner */}
-          {!isApproved && (
-            <div className="mt-1 rounded-control bg-brand-soft p-4 text-sm text-brand-ink leading-relaxed">
-              <p>
-                Your plan must be approved before the internship starts. Your teacher is notified when you submit.
-              </p>
-            </div>
-          )}
-        </aside>
+        <SubmissionChecklist
+          title={isApproved ? "Plan status" : "Before you submit"}
+          items={[
+            {
+              id: "workplace",
+              done: checklist.isWorkplaceFilled,
+              label: "Workplace and supervisor filled in",
+            },
+            {
+              id: "period",
+              done: checklist.isPeriodFilled,
+              label: "Period and hours filled in",
+            },
+            {
+              id: "word-count",
+              done: checklist.isWordCountMet,
+              label: (
+                <>
+                  Job description at least {MIN_DESCRIPTION_WORDS} words{" "}
+                  <span className="text-ink-muted">(now {wordCount})</span>
+                </>
+              ),
+            },
+            {
+              id: "goals",
+              done: checklist.hasEnoughGoals,
+              label: `At least ${MIN_LEARNING_GOALS} learning goals`,
+            },
+          ]}
+          note={
+            !isApproved
+              ? "Your plan must be approved before the internship starts. Your teacher is notified when you submit."
+              : null
+          }
+        />
       </div>
     </>
   );

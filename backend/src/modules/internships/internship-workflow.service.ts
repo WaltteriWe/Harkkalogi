@@ -49,9 +49,23 @@ export function computeInternshipWorkflow(internship: any): ComputedInternshipWo
   const isPlanSubmitted = planStatus === "SUBMITTED" || isPlanApproved;
 
   // Check report statuses - strictly gated on plan approval
+  const hasApprovedReport = reports.some(
+    (r: any) =>
+      (r.status || "").toUpperCase() === "REVIEWED" ||
+      (r.status || "").toUpperCase() === "APPROVED" ||
+      r.reviews?.some((rev: any) => (rev.decision || "").toUpperCase() === "APPROVED")
+  );
+  const hasSubmittedReport =
+    hasApprovedReport ||
+    reports.some((r: any) => (r.status || "").toUpperCase() === "SUBMITTED");
+
   const reportStatus = (latestReport?.status || "").toUpperCase();
-  const isReportApproved = isPlanApproved && (reportStatus === "REVIEWED" || reportStatus === "APPROVED");
-  const isReportSubmitted = isPlanApproved && (reportStatus === "SUBMITTED" || isReportApproved);
+  const isReportApproved =
+    isPlanApproved &&
+    (hasApprovedReport || reportStatus === "REVIEWED" || reportStatus === "APPROVED");
+  const isReportSubmitted =
+    isPlanApproved &&
+    (hasSubmittedReport || reportStatus === "SUBMITTED" || isReportApproved);
 
   // Check evaluation statuses - strictly gated on report approval
   const evalStatus = (guidanceEvaluation?.status || "").toUpperCase();
@@ -60,8 +74,14 @@ export function computeInternshipWorkflow(internship: any): ComputedInternshipWo
 
   // Calculate hours
   let loggedHours = 0;
+  const isPeriodEnded = Boolean(
+    internship.endDate && new Date(internship.endDate) <= new Date()
+  );
+
   if (!isPlanApproved) {
     loggedHours = 0;
+  } else if (isPeriodEnded || isReportSubmitted) {
+    loggedHours = targetHours;
   } else if (latestReport) {
     loggedHours = isReportSubmitted
       ? targetHours
@@ -175,14 +195,14 @@ export function computeInternshipWorkflow(internship: any): ComputedInternshipWo
       title: "Report & work certificate",
       detail: step4Detail,
       status: step4Status,
-      href: "/reports",
+      href: "/report",
     },
     {
       stepNumber: 5,
       title: "Teacher approval",
       detail: step5Detail,
       status: step5Status,
-      href: "/reports",
+      href: "/report",
     },
     {
       stepNumber: 6,

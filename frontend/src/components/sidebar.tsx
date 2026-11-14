@@ -25,14 +25,14 @@ export const navByRole: Record<Role, NavGroup[]> = {
     },
     {
       items: [
-        { label: "Internship plan", href: "/planning" },
-        { label: "Reports", href: "/reports" },
-        { label: "Guidance evaluation", href: "/guidance-evaluation" },
+        { label: "Plan", href: "/planning" },
+        { label: "Report", href: "/report" },
+        { label: "Evaluation", href: "/guidance-evaluation" },
       ],
     },
     {
       items: [
-        { label: "Documents", href: "/documents" },
+        { label: "Submissions", href: "/submissions" },
         { label: "Messages", href: "/messages" },
       ],
     },
@@ -193,8 +193,10 @@ export default function Sidebar({ role, userName }: SidebarProps = {}) {
                   {group.items.map(({ label, href }) => {
                     const isCurrent =
                       pathname === href ||
-                      (href === "/reports" &&
-                        (pathname === "/report" || pathname.startsWith("/report/")));
+                      (href === "/report" &&
+                        (pathname === "/report" || pathname.startsWith("/report/"))) ||
+                      (href === "/submissions" &&
+                        (pathname === "/submissions" || pathname.startsWith("/submissions/")));
 
                     return (
                       <Link
@@ -262,8 +264,10 @@ export default function Sidebar({ role, userName }: SidebarProps = {}) {
               {group.items.map(({ label, href }) => {
                 const isCurrent =
                   pathname === href ||
-                  (href === "/reports" &&
-                    (pathname === "/report" || pathname.startsWith("/report/")));
+                  (href === "/report" &&
+                    (pathname === "/report" || pathname.startsWith("/report/"))) ||
+                  (href === "/submissions" &&
+                    (pathname === "/submissions" || pathname.startsWith("/submissions/")));
 
                 return (
                   <Link

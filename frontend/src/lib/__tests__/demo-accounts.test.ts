@@ -9,7 +9,7 @@ import {
 
 describe("DemoAccountsCard Configuration & Guards", () => {
   it("defines expected demo accounts with valid email addresses", () => {
-    assert.equal(DEMO_ACCOUNTS.length, 3);
+    assert.equal(DEMO_ACCOUNTS.length, 5);
 
     const sara = DEMO_ACCOUNTS.find((a) => a.email === "sara.niemi@metropolia.fi");
     assert.ok(sara, "Sara Niemi account should exist");
@@ -17,6 +17,16 @@ describe("DemoAccountsCard Configuration & Guards", () => {
 
     const aino = DEMO_ACCOUNTS.find((a) => a.email === "aino.korhonen@metropolia.fi");
     assert.ok(aino, "Aino Korhonen account should exist");
+
+    const matias = DEMO_ACCOUNTS.find((a) => a.email === "matias.koskinen@metropolia.fi");
+    assert.ok(matias, "Matias Koskinen account should exist");
+    assert.equal(matias.name, "Matias Koskinen");
+    assert.ok(matias.badge.includes("Vaihe 6"));
+
+    const eetu = DEMO_ACCOUNTS.find((a) => a.email === "eetu.makinen@metropolia.fi");
+    assert.ok(eetu, "Eetu Mäkinen account should exist");
+    assert.equal(eetu.name, "Eetu Mäkinen");
+    assert.ok(eetu.badge.includes("H2 päättynyt"));
 
     const mikko = DEMO_ACCOUNTS.find((a) => a.email === "mikko.laine@metropolia.fi");
     assert.ok(mikko, "Mikko Laine account should exist");

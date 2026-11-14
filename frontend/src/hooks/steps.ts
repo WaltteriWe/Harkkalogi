@@ -37,14 +37,14 @@ export const DEFAULT_6_STEPS: Step[] = [
     title: "Report & work certificate",
     detail: "Due at end of internship",
     status: "upcoming",
-    href: "/reports",
+    href: "/report",
   },
   {
     stepNumber: 5,
     title: "Teacher approval",
     detail: "Credits to OMA",
     status: "upcoming",
-    href: "/reports",
+    href: "/report",
   },
   {
     stepNumber: 6,

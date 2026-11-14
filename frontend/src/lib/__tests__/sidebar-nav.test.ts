@@ -14,14 +14,14 @@ describe("sidebar-nav: navByRole structure and process alignment", () => {
 
     // Group 1: The 3 adjacent chronological internship process stages
     assert.deepEqual(studentGroups[1].items, [
-      { label: "Internship plan", href: "/planning" },
-      { label: "Reports", href: "/reports" },
-      { label: "Guidance evaluation", href: "/guidance-evaluation" },
+      { label: "Plan", href: "/planning" },
+      { label: "Report", href: "/report" },
+      { label: "Evaluation", href: "/guidance-evaluation" },
     ]);
 
     // Group 2: Supporting resources and communication
     assert.deepEqual(studentGroups[2].items, [
-      { label: "Documents", href: "/documents" },
+      { label: "Submissions", href: "/submissions" },
       { label: "Messages", href: "/messages" },
     ]);
   });
@@ -31,9 +31,9 @@ describe("sidebar-nav: navByRole structure and process alignment", () => {
     assert.deepEqual(allStudentHrefs, [
       "/",
       "/planning",
-      "/reports",
+      "/report",
       "/guidance-evaluation",
-      "/documents",
+      "/submissions",
       "/messages",
     ]);
   });

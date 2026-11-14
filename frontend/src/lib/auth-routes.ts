@@ -11,7 +11,7 @@ const ROLE_ALLOWED_PREFIXES: Record<Role, string[]> = {
     "/reports",
     "/planning",
     "/report",
-    "/documents",
+    "/submissions",
     "/messages",
     "/guidance-evaluation",
   ],

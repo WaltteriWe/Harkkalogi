@@ -6,6 +6,9 @@ import { useSearchParams } from "next/navigation";
 import { useReport } from "@/context/ReportContext";
 import { useInternship } from "@/context/InternshipContext";
 import DateInput from "@/components/dateInput";
+import StepStatusBanner from "@/components/stepStatusBanner";
+import SubmissionChecklist from "@/components/submissionChecklist";
+import ProcessPageHeader from "@/components/processPageHeader";
 
 function ReportEditor() {
   const searchParams = useSearchParams();
@@ -85,41 +88,23 @@ function ReportEditor() {
   return (
     <>
       {/* Header section */}
-        <div>
-          <Link href="/reports" className="link-quiet inline-flex items-center gap-1.5 text-sm">
-            ← Back to reports
-          </Link>
-
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-4">
-            <h1 className="text-3xl font-bold tracking-tight text-ink">
-              {report.title}
-            </h1>
-
-            <div>
-              {isApproved ? (
-                <span className="pill-success text-sm px-3 py-1">Approved</span>
-              ) : isSubmitted ? (
-                <span className="pill-info text-sm px-3 py-1">Submitted</span>
-              ) : (
-                <span className="pill-neutral text-sm px-3 py-1">Draft</span>
-              )}
-            </div>
-          </div>
-
-          <p className="meta mt-1 text-sm text-ink-muted">
-            {isApproved
-              ? `Approved on ${report.approvedAt || "earlier"}`
-              : isSubmitted
-                ? `Submitted on ${report.submittedAt || "recently"}`
-                : saveStatus === "saving"
-                  ? "Saving draft..."
-                  : saveStatus === "unsaved"
-                    ? "Unsaved changes..."
-                    : saveStatus === "error"
-                      ? "Draft save failed · saved locally"
-                      : `Draft saved automatically · last saved ${lastSavedAt || report.lastSavedAt}`}
-          </p>
-        </div>
+      <ProcessPageHeader
+        title={report.title || "Internship report"}
+        status={report.status}
+        subtitle={
+          isApproved
+            ? `Approved on ${report.approvedAt || "earlier"}`
+            : isSubmitted
+              ? `Submitted on ${report.submittedAt || "recently"}`
+              : saveStatus === "saving"
+                ? "Saving draft..."
+                : saveStatus === "unsaved"
+                  ? "Unsaved changes..."
+                  : saveStatus === "error"
+                    ? "Draft save failed · saved locally"
+                    : `Draft saved automatically · last saved ${lastSavedAt || report.lastSavedAt}`
+        }
+      />
 
         {/* Feedback message banner if present */}
         {notification && (
@@ -136,35 +121,14 @@ function ReportEditor() {
           </div>
         )}
 
-        {/* Approved banner with teacher feedback */}
-        {isApproved && (
-          <div className="rounded-control bg-success-soft border border-success/20 p-4 text-sm text-success flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <p className="font-semibold text-base">
-                Report approved by Mikko Laine
-              </p>
-              <span className="pill-success">Approved</span>
-            </div>
-            {report.teacherFeedback && (
-              <p className="text-ink leading-relaxed mt-1">
-                {report.teacherFeedback}
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* Submission banner if under review */}
-        {isSubmitted && !isApproved && (
-          <div className="rounded-control bg-info-soft border border-info/20 p-4 text-sm text-info flex items-center justify-between">
-            <div>
-              <p className="font-semibold">Report is under teacher review</p>
-              <p className="mt-0.5">
-                Submitted on {report.submittedAt || "recently"}. You can still review your report details below.
-              </p>
-            </div>
-            <span className="pill-info">Submitted</span>
-          </div>
-        )}
+        {/* Step status banner (feedback or review) */}
+        <StepStatusBanner
+          step="report"
+          status={report.status}
+          submittedAt={report.submittedAt}
+          feedback={report.teacherFeedback}
+          feedbackAuthor="Mikko Laine"
+        />
 
         {/* Main 2-column content layout */}
         <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[1fr_21rem]">
@@ -314,6 +278,40 @@ function ReportEditor() {
                   )}
                 </div>
               </div>
+
+              {/* 4. Supervisor feedback */}
+              <div>
+                <h2 className="text-base font-semibold text-ink">
+                  4. Supervisor feedback
+                </h2>
+                <div className="mt-3">
+                  <label
+                    htmlFor="supervisor-feedback-checkbox"
+                    className={`flex items-start gap-3 rounded-control border border-border p-4 transition-all ${
+                      !isApproved
+                        ? "cursor-pointer bg-surface hover:bg-surface-muted/50"
+                        : "cursor-default bg-surface-muted/30"
+                    }`}
+                  >
+                    <input
+                      id="supervisor-feedback-checkbox"
+                      type="checkbox"
+                      checked={report.supervisorFeedbackRequested}
+                      onChange={!isApproved ? toggleSupervisorFeedback : undefined}
+                      disabled={isApproved}
+                      className="checkbox mt-0.5"
+                    />
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-sm font-semibold text-ink">
+                        Supervisor feedback requested / completed
+                      </span>
+                      <span className="text-xs text-ink-muted leading-relaxed">
+                        I have discussed feedback with my workplace supervisor regarding my internship performance.
+                      </span>
+                    </div>
+                  </label>
+                </div>
+              </div>
             </section>
 
             {/* Action buttons aligned right */}
@@ -336,129 +334,49 @@ function ReportEditor() {
               </div>
             ) : (
               <div className="flex items-center justify-end">
-                <Link href="/reports" className="btn-secondary">
-                  Back to reports
+                <Link href="/" className="btn-secondary">
+                  Back to overview
                 </Link>
               </div>
             )}
           </div>
 
           {/* Right Column: Submission Checklist */}
-          <aside className="card flex flex-col gap-5">
-            <h2 className="text-base font-semibold text-ink">
-              {isApproved ? "Report status" : "Before you submit"}
-            </h2>
-
-            <ul className="flex flex-col gap-3.5 text-sm">
-              {/* Item 1 */}
-              <li className="flex items-center gap-3">
-                {checklist.isWorkplaceFilled ? (
-                  <span className="step-icon-done shrink-0" aria-label="Completed">
-                    <svg
-                      className="size-3.5 stroke-white"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  </span>
-                ) : (
-                  <span className="step-icon-todo shrink-0" aria-label="To do" />
-                )}
-                <span className="text-ink">Workplace and period filled in</span>
-              </li>
-
-              {/* Item 2 */}
-              <li className="flex items-center gap-3">
-                {checklist.hasWorkCertificate ? (
-                  <span className="step-icon-done shrink-0" aria-label="Completed">
-                    <svg
-                      className="size-3.5 stroke-white"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  </span>
-                ) : (
-                  <span className="step-icon-todo shrink-0" aria-label="To do" />
-                )}
-                <span className="text-ink">Work certificate attached</span>
-              </li>
-
-              {/* Item 3 */}
-              <li className="flex items-center gap-3">
-                {checklist.isWordCountMet ? (
-                  <span className="step-icon-done shrink-0" aria-label="Completed">
-                    <svg
-                      className="size-3.5 stroke-white"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  </span>
-                ) : (
-                  <span className="step-icon-todo shrink-0" aria-label="To do" />
-                )}
-                <span className="text-ink">
-                  Learning section at least 300 words{" "}
-                  <span className="text-ink-muted">(now {wordCount})</span>
-                </span>
-              </li>
-
-              {/* Item 4 */}
-              <li className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={!isApproved ? toggleSupervisorFeedback : undefined}
-                  disabled={isApproved}
-                  className={`flex items-center gap-3 text-left w-full transition-opacity ${
-                    !isApproved ? "hover:opacity-85" : "cursor-default"
-                  }`}
-                  title={!isApproved ? "Click to toggle supervisor feedback status" : undefined}
-                >
-                  {checklist.isSupervisorFeedbackRequested ? (
-                    <span className="step-icon-done shrink-0" aria-label="Completed">
-                      <svg
-                        className="size-3.5 stroke-white"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    </span>
-                  ) : (
-                    <span className="step-icon-todo shrink-0" aria-label="To do" />
-                  )}
-                  <span className="text-ink">Supervisor feedback requested</span>
-                </button>
-              </li>
-            </ul>
-
-            {/* Orange deadline banner */}
-            {!isApproved && (
-              <div className="mt-1 rounded-control bg-brand-soft p-4 text-sm text-brand-ink leading-relaxed">
-                <p>Deadline 15.12.2026. Your teacher is notified when you submit.</p>
-              </div>
-            )}
-          </aside>
+          <SubmissionChecklist
+            title={isApproved ? "Report status" : "Before you submit"}
+            items={[
+              {
+                id: "workplace",
+                done: checklist.isWorkplaceFilled,
+                label: "Workplace and period filled in",
+              },
+              {
+                id: "certificate",
+                done: checklist.hasWorkCertificate,
+                label: "Work certificate attached",
+              },
+              {
+                id: "word-count",
+                done: checklist.isWordCountMet,
+                label: (
+                  <>
+                    Learning section at least 300 words{" "}
+                    <span className="text-ink-muted">(now {wordCount})</span>
+                  </>
+                ),
+              },
+              {
+                id: "supervisor-feedback",
+                done: checklist.isSupervisorFeedbackRequested,
+                label: "Supervisor feedback requested",
+              },
+            ]}
+            note={
+              !isApproved
+                ? "Deadline 15.12.2026. Your teacher is notified when you submit."
+                : null
+            }
+          />
         </div>
     </>
   );

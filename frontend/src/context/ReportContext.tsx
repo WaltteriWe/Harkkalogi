@@ -172,6 +172,8 @@ export function ReportProvider({ children }: { children: ReactNode }) {
   const activeReport = useMemo(() => {
     return (
       store.reports.find((r) => r.id === store.activeReportId) ||
+      store.reports.find((r) => r.status === "approved") ||
+      store.reports.find((r) => r.status === "submitted") ||
       store.reports[0] ||
       EMPTY_REPORT
     );
@@ -219,13 +221,31 @@ export function ReportProvider({ children }: { children: ReactNode }) {
           const localOnly = prev.reports.filter(
             (lr) =>
               isNaN(Number(lr.id)) &&
-              !backendReports.some((br) => br.title === lr.title)
+              lr.id !== "report-draft-1" &&
+              !backendReports.some((br) => br.title === lr.title) &&
+              Boolean(lr.tasksAndLearning || lr.company)
           );
           const merged = [...backendReports, ...localOnly];
-          const hasActive = merged.some((r) => r.id === prev.activeReportId);
+
+          const hasRealActive =
+            prev.activeReportId !== "report-draft-1" &&
+            merged.some((r) => r.id === prev.activeReportId);
+
+          let preferredActiveId = merged[0].id;
+          if (hasRealActive) {
+            preferredActiveId = prev.activeReportId;
+          } else {
+            const approvedOrSubmitted = merged.find(
+              (r) => r.status === "approved" || r.status === "submitted"
+            );
+            if (approvedOrSubmitted) {
+              preferredActiveId = approvedOrSubmitted.id;
+            }
+          }
+
           return {
             reports: merged,
-            activeReportId: hasActive ? prev.activeReportId : merged[0].id,
+            activeReportId: preferredActiveId,
           };
         });
       } catch (err) {

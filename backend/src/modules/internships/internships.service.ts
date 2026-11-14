@@ -15,7 +15,7 @@ export class InternshipsService {
         plan: true,
         guidanceEvaluation: true,
       },
-      orderBy: { startDate: "desc" },
+      orderBy: [{ order: "asc" }, { startDate: "asc" }],
     });
 
     return internships.map((i) => ({

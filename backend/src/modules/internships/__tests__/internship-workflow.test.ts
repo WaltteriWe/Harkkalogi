@@ -131,4 +131,30 @@ describe("Internship Workflow Service (computeInternshipWorkflow)", () => {
     assert.ok(wf.steps.every((s) => s.status === "done"));
     assert.equal(wf.steps.filter((s) => s.status === "current").length, 0);
   });
+
+  it("Step 4 is current when plan is approved and time/hours have elapsed (Eetu H2 scenario)", () => {
+    const wf = computeInternshipWorkflow({
+      id: 2,
+      title: "Harjoittelu 2",
+      requiredHours: 400,
+      plan: {
+        scope: "h2",
+        status: "APPROVED",
+        submittedAt: new Date("2026-04-25"),
+        approvedAt: new Date("2026-04-28"),
+      },
+      reports: [{ totalHours: 400, status: "DRAFT" }], // 400 h elapsed, report ready to write
+      guidanceEvaluation: null,
+    });
+
+    assert.equal(wf.isPlanApproved, true);
+    assert.equal(wf.isReportSubmitted, false);
+    assert.equal(wf.steps[0].status, "done"); // Plan submitted
+    assert.equal(wf.steps[1].status, "done"); // Plan approved
+    assert.equal(wf.steps[2].status, "done"); // Internship in progress (400 h reached)
+    assert.equal(wf.steps[3].status, "current"); // Report & work certificate ready to write!
+    assert.equal(wf.steps[4].status, "upcoming"); // Teacher approval
+    assert.equal(wf.steps[5].status, "upcoming"); // Guidance evaluation
+    assert.equal(wf.nextAction.actionHref, "/reports");
+  });
 });

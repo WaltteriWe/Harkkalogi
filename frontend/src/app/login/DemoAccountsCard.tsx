@@ -27,6 +27,20 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
     subtitle: "aino.korhonen@metropolia.fi",
   },
   {
+    name: "Matias Koskinen",
+    email: "matias.koskinen@metropolia.fi",
+    badge: "Raportti hyväksytty · Vaihe 6",
+    badgeColorClass: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    subtitle: "matias.koskinen@metropolia.fi · Ohjauksen arviointi auki",
+  },
+  {
+    name: "Eetu Mäkinen",
+    email: "eetu.makinen@metropolia.fi",
+    badge: "H2 päättynyt · Raportointi",
+    badgeColorClass: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
+    subtitle: "eetu.makinen@metropolia.fi · H1 suoritettu, H2 raportti auki",
+  },
+  {
     name: "Mikko Laine",
     email: "mikko.laine@metropolia.fi",
     badge: "Valvojaopettaja",
@@ -71,6 +85,10 @@ export function DemoAccountsCard({ onSelectAccount }: DemoAccountsCardProps) {
         window.localStorage.removeItem(DEMO_STORAGE_KEY_SARA);
         window.localStorage.removeItem("harkkalogi_reports_sara_niemi_metropolia_fi");
         window.localStorage.removeItem("harkkalogi_reports_sara");
+        window.localStorage.removeItem("harkkalogi_reports_matias_koskinen_metropolia_fi");
+        window.localStorage.removeItem("harkkalogi_guidance_matias");
+        window.localStorage.removeItem("harkkalogi_reports_eetu_makinen_metropolia_fi");
+        window.localStorage.removeItem("harkkalogi_plan_eetu_makinen_metropolia_fi");
         window.localStorage.removeItem("harkkalogi_report_store_v4");
       }
       await apiFetch("/demo/reset", { method: "POST" }).catch(() => {});
@@ -95,7 +113,7 @@ export function DemoAccountsCard({ onSelectAccount }: DemoAccountsCardProps) {
       </div>
 
       <p className="text-xs text-ink-muted mb-4 leading-relaxed">
-        Valitse tili esitäyttääksesi tunnukset. Voit testata koko harjoitteluprosessia alusta uudella opiskelijalla (Sara) tai tarkastella opettajan näkymää (Mikko).
+        Valitse tili esitäyttääksesi tunnukset. Voit testata koko harjoitteluprosessia alusta (Sara), käynnissä olevaa harjoittelua (Aino), valmista jaksoa ja ohjauksen arviointia (Matias) tai opettajan näkymää (Mikko).
       </p>
 
       <div className="flex flex-col gap-2">

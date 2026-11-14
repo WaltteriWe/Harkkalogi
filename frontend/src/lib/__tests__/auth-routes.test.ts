@@ -28,14 +28,13 @@ describe("auth-routes: ROLE_LANDING_PATHS and getLandingPath", () => {
 
 describe("auth-routes: isRouteAllowedForRole", () => {
   describe("student role", () => {
-    it("allows student to access student overview, reports, documents, guidance evaluation, and messages", () => {
+    it("allows student to access student overview, reports, submissions, guidance evaluation, and messages", () => {
       assert.equal(isRouteAllowedForRole("student", "/"), true);
       assert.equal(isRouteAllowedForRole("student", "/reports"), true);
       assert.equal(isRouteAllowedForRole("student", "/planning"), true);
       assert.equal(isRouteAllowedForRole("student", "/report"), true);
       assert.equal(isRouteAllowedForRole("student", "/report/123"), true);
-      assert.equal(isRouteAllowedForRole("student", "/documents"), true);
-      assert.equal(isRouteAllowedForRole("student", "/documents/template-1"), true);
+      assert.equal(isRouteAllowedForRole("student", "/submissions"), true);
       assert.equal(isRouteAllowedForRole("student", "/guidance-evaluation"), true);
       assert.equal(isRouteAllowedForRole("student", "/messages"), true);
     });
@@ -62,7 +61,7 @@ describe("auth-routes: isRouteAllowedForRole", () => {
       assert.equal(isRouteAllowedForRole("teacher", "/reports"), false);
       assert.equal(isRouteAllowedForRole("teacher", "/planning"), false);
       assert.equal(isRouteAllowedForRole("teacher", "/report/123"), false);
-      assert.equal(isRouteAllowedForRole("teacher", "/documents"), false);
+      assert.equal(isRouteAllowedForRole("teacher", "/submissions"), false);
       assert.equal(isRouteAllowedForRole("teacher", "/admin"), false);
       assert.equal(isRouteAllowedForRole("teacher", "/admin/users"), false);
     });
@@ -79,7 +78,7 @@ describe("auth-routes: isRouteAllowedForRole", () => {
     it("prevents admin from accessing student overview and teacher view", () => {
       assert.equal(isRouteAllowedForRole("admin", "/"), false);
       assert.equal(isRouteAllowedForRole("admin", "/reports"), false);
-      assert.equal(isRouteAllowedForRole("admin", "/documents"), false);
+      assert.equal(isRouteAllowedForRole("admin", "/submissions"), false);
       assert.equal(isRouteAllowedForRole("admin", "/teacher-view"), false);
     });
   });

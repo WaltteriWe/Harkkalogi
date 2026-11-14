@@ -11,20 +11,25 @@ import { formatDate } from "../lib/dates";
 export default function ReportingProgress() {
   const { report } = useReport();
   const { plan } = usePlan();
-  const { activeInternship, targetHours, loggedHours } = useInternship();
-
-  const isPlanApproved = plan.status === "approved";
-  const isPlanSubmitted = plan.status === "submitted" || isPlanApproved;
-  // Crucial: Report submission/approval is strictly gated on plan approval!
-  const isReportApproved = isPlanApproved && report.status === "approved";
-  const isReportSubmitted = isPlanApproved && (report.status === "submitted" || isReportApproved);
+  const {
+    activeInternship,
+    targetHours,
+    loggedHours,
+    isPlanApproved,
+    isPlanSubmitted,
+    isReportApproved,
+    isReportSubmitted,
+  } = useInternship();
 
   const dynamicSteps = useMemo<Step[]>(() => {
+    const activePlan = activeInternship.plan || plan;
+    const activeReport = activeInternship.report || report;
+
     // 1. Plan submitted
     const step1Status: StepStatus = isPlanSubmitted ? "done" : "current";
     const step1Detail = isPlanSubmitted
-      ? plan.submittedAt
-        ? `Submitted ${formatDate(plan.submittedAt) || plan.submittedAt}`
+      ? activePlan.submittedAt
+        ? `Submitted ${formatDate(activePlan.submittedAt) || activePlan.submittedAt}`
         : "Done 12.5.2026"
       : "Draft in progress";
 
@@ -35,8 +40,8 @@ export default function ReportingProgress() {
         ? "done"
         : "current";
     const step2Detail = isPlanApproved
-      ? plan.approvedAt
-        ? `Approved ${formatDate(plan.approvedAt) || plan.approvedAt}`
+      ? activePlan.approvedAt
+        ? `Approved ${formatDate(activePlan.approvedAt) || activePlan.approvedAt}`
         : "Approved 28.5.2026"
       : isPlanSubmitted
         ? "Awaiting review"
@@ -66,8 +71,8 @@ export default function ReportingProgress() {
     const step4Detail = !isPlanApproved
       ? "Due at end of internship"
       : isReportSubmitted
-        ? report.submittedAt
-          ? `Submitted ${formatDate(report.submittedAt) || report.submittedAt}`
+        ? activeReport.submittedAt
+          ? `Submitted ${formatDate(activeReport.submittedAt) || activeReport.submittedAt}`
           : "Submitted with certificate"
         : "Due at end of internship";
 
@@ -80,8 +85,8 @@ export default function ReportingProgress() {
     const step5Detail = !isReportSubmitted
       ? "After report submission"
       : isReportApproved
-        ? report.approvedAt
-          ? `Approved ${formatDate(report.approvedAt) || report.approvedAt}`
+        ? activeReport.approvedAt
+          ? `Approved ${formatDate(activeReport.approvedAt) || activeReport.approvedAt}`
           : "Approved · Credits to OMA"
         : "Under teacher review";
 
@@ -118,14 +123,14 @@ export default function ReportingProgress() {
         title: "Report & work certificate",
         detail: step4Detail,
         status: step4Status,
-        href: "/reports",
+        href: "/report",
       },
       {
         stepNumber: 5,
         title: "Teacher approval",
         detail: step5Detail,
         status: step5Status,
-        href: "/reports",
+        href: "/report",
       },
       {
         stepNumber: 6,
@@ -140,10 +145,9 @@ export default function ReportingProgress() {
     isPlanApproved,
     isReportSubmitted,
     isReportApproved,
-    plan.submittedAt,
-    plan.approvedAt,
-    report.submittedAt,
-    report.approvedAt,
+    activeInternship,
+    plan,
+    report,
     targetHours,
     loggedHours,
   ]);
@@ -170,12 +174,16 @@ export default function ReportingProgress() {
       };
     }
     if (!isReportSubmitted) {
+      const isHoursDone = loggedHours >= targetHours && targetHours > 0;
       return {
-        title: "Step 3: Harjoittelu käynnissä",
-        description:
-          "Harjoittelusuunnitelma on hyväksytty. Muista seurata työtuntejasi ja valmistella harjoitteluraporttia.",
-        actionLabel: "Siirry raportteihin →",
-        actionHref: "/reports",
+        title: isHoursDone
+          ? "Step 4: Harjoittelun loppuraportti"
+          : "Step 3: Harjoittelu käynnissä",
+        description: isHoursDone
+          ? "Harjoitteluaika on päättynyt ja vaaditut tunnit ovat täynnä. Kirjoita loppuraportti ja liitä työtodistus."
+          : "Harjoittelusuunnitelma on hyväksytty. Muista seurata työtuntejasi ja valmistella harjoitteluraporttia.",
+        actionLabel: isHoursDone ? "Kirjoita raportti →" : "Siirry raporttiin →",
+        actionHref: "/report",
       };
     }
     if (!isReportApproved) {
@@ -184,7 +192,7 @@ export default function ReportingProgress() {
         description:
           "Harjoitteluraporttisi ja työtodistuksesi on toimitettu ohjaavalle opettajalle tarkistettavaksi.",
         actionLabel: "Tarkastele raporttia →",
-        actionHref: "/reports",
+        actionHref: "/report",
       };
     }
     return {
@@ -194,7 +202,7 @@ export default function ReportingProgress() {
       actionLabel: "Avaa ohjauksen arviointi →",
       actionHref: "/guidance-evaluation",
     };
-  }, [isPlanSubmitted, isPlanApproved, isReportSubmitted, isReportApproved]);
+  }, [isPlanSubmitted, isPlanApproved, isReportSubmitted, isReportApproved, loggedHours, targetHours]);
 
   return (
     <section className="card flex flex-col justify-between gap-5 h-full">

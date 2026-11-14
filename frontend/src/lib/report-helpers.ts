@@ -174,17 +174,23 @@ export function mapBackendReport(r: RawBackendReport): ReportState {
   const teacherFeedback = r.reviews?.[0]?.comment || "";
 
   let tasks = r.tasksAndLearning;
-  if (tasks === undefined) {
-    if (typeof r.content === "string") {
-      try {
-        const parsed = JSON.parse(r.content);
+  let parsedTotalHours = r.totalHours;
+  if (typeof r.content === "string") {
+    try {
+      const parsed = JSON.parse(r.content);
+      if (tasks === undefined) {
         tasks = parsed?.tasksAndLearning ?? "";
-      } catch {
+      }
+      if (parsedTotalHours === undefined && parsed?.totalHours !== undefined) {
+        parsedTotalHours = parsed.totalHours;
+      }
+    } catch {
+      if (tasks === undefined) {
         tasks = r.content;
       }
-    } else {
-      tasks = "";
     }
+  } else if (tasks === undefined) {
+    tasks = "";
   }
 
   return createReportState({
@@ -197,7 +203,7 @@ export function mapBackendReport(r: RawBackendReport): ReportState {
     endDate:
       r.endDate ||
       (r.internship?.endDate ? r.internship.endDate.split("T")[0] : ""),
-    totalHours: r.totalHours !== undefined ? r.totalHours : 400,
+    totalHours: parsedTotalHours !== undefined ? parsedTotalHours : 400,
     tasksAndLearning: sanitizeTasksAndLearning(tasks),
     attachments: Array.isArray(r.attachments) ? r.attachments : [],
     supervisorFeedbackRequested: Boolean(r.supervisorFeedbackRequested),

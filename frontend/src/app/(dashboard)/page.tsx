@@ -7,11 +7,6 @@ import { useReport } from "@/context/ReportContext";
 import { useInternship } from "@/context/InternshipContext";
 import { formatPeriod } from "@/lib/dates";
 
-const contacts = [
-  { name: "Laura Nieminen", role: "Workplace supervisor" },
-  { name: "Mikko Laine", role: "Supervising teacher" },
-];
-
 export default function Home() {
   const { report } = useReport();
   const {
@@ -20,12 +15,20 @@ export default function Home() {
     loggedHours,
     remainingHours,
     isPlanSubmitted,
+    contacts,
   } = useInternship();
 
   const progressPercent = Math.min(
     100,
     Math.round((loggedHours / targetHours) * 100)
   );
+
+  const activeStartDate = activeInternship.startDate || report.startDate;
+  const activeEndDate = activeInternship.endDate || report.endDate;
+  const activePeriod =
+    activeStartDate && activeEndDate
+      ? formatPeriod(activeStartDate, activeEndDate)
+      : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -38,9 +41,7 @@ export default function Home() {
               <>
                 {" "}· {activeInternship.title}
                 {activeInternship.company && ` · ${activeInternship.company}`}
-                {report.startDate && report.endDate && (
-                  <> · {formatPeriod(report.startDate, report.endDate)}</>
-                )}
+                {activePeriod && <> · {activePeriod}</>}
               </>
             ) : (
               <> · Tutkintovaatimus: 30 op (800 h) · Suunnitelma kesken</>

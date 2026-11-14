@@ -12,9 +12,9 @@ describe("steps: DEFAULT_6_STEPS structure and calculateInternshipSteps", () => 
     assert.equal(DEFAULT_6_STEPS[2].title, "Internship in progress");
     assert.equal(DEFAULT_6_STEPS[2].href, "/");
     assert.equal(DEFAULT_6_STEPS[3].title, "Report & work certificate");
-    assert.equal(DEFAULT_6_STEPS[3].href, "/reports");
+    assert.equal(DEFAULT_6_STEPS[3].href, "/report");
     assert.equal(DEFAULT_6_STEPS[4].title, "Teacher approval");
-    assert.equal(DEFAULT_6_STEPS[4].href, "/reports");
+    assert.equal(DEFAULT_6_STEPS[4].href, "/report");
     assert.equal(DEFAULT_6_STEPS[5].title, "Guidance evaluation");
     assert.equal(DEFAULT_6_STEPS[5].href, "/guidance-evaluation");
   });

@@ -55,7 +55,35 @@ export class DemoService {
         });
       }
     }
-    return { success: true, message: "Demo student Sara Niemi reset successfully" };
+
+    const matias = await prisma.user.findUnique({
+      where: { email: "matias.koskinen@metropolia.fi" },
+    });
+    if (matias) {
+      // Reset Matias's guidance evaluation back to clean draft/unsubmitted state
+      await (prisma as any).guidanceEvaluation?.deleteMany({ where: { studentId: matias.id } });
+    }
+
+    const eetu = await prisma.user.findUnique({
+      where: { email: "eetu.makinen@metropolia.fi" },
+    });
+    if (eetu) {
+      await (prisma as any).guidanceEvaluation?.deleteMany({ where: { studentId: eetu.id } });
+      // Reset H2 report so Harjoittelu 2 is always back to ready-to-report state
+      const eetuH2 = await prisma.internship.findFirst({
+        where: { studentId: eetu.id, order: 2 },
+      });
+      if (eetuH2) {
+        await prisma.review.deleteMany({
+          where: { report: { internshipId: eetuH2.id } },
+        });
+        await prisma.report.deleteMany({
+          where: { internshipId: eetuH2.id },
+        });
+      }
+    }
+
+    return { success: true, message: "Demo students reset successfully" };
   }
 }
 
