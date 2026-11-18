@@ -32,17 +32,27 @@ describe("Internships Endpoints (/api/internships) [E2E HTTP Flow]", () => {
       assert.equal(res.body.error, "Access token is missing");
     });
 
-    it("returns 200 with real internships from PostgreSQL", async () => {
+    it("returns 200 with real internships from PostgreSQL for student Aino", async () => {
       const res = await server.request.get("/api/internships", {
         headers: testUsers.aino.authHeaders,
       });
 
       assert.equal(res.status, 200);
       assert.ok(Array.isArray(res.body.internships));
-      assert.ok(res.body.internships.length >= 2);
+      assert.ok(res.body.internships.length >= 1);
 
       const companies = res.body.internships.map((i: any) => i.company);
       assert.ok(companies.includes("Nordic Pixel Oy"));
+    });
+
+    it("returns all internships from PostgreSQL for teacher Mikko", async () => {
+      const res = await server.request.get("/api/internships", {
+        headers: testUsers.mikko.authHeaders,
+      });
+
+      assert.equal(res.status, 200);
+      assert.ok(Array.isArray(res.body.internships));
+      assert.ok(res.body.internships.length >= 2);
     });
 
     it("filters internships by studentId", async () => {

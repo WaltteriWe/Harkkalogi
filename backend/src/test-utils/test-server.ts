@@ -162,16 +162,35 @@ async function makeRequest(
   };
 }
 
+const activeServers = new Set<Server>();
+
+process.on("exit", () => {
+  for (const s of activeServers) {
+    try {
+      if (typeof (s as any).closeAllConnections === "function") {
+        (s as any).closeAllConnections();
+      }
+      s.close();
+    } catch {}
+  }
+});
+
 export async function setupTestServer(): Promise<TestServer> {
   process.env.NODE_ENV = "test";
   const app = createApp();
   const server: Server = app.listen(0);
+  activeServers.add(server);
   await new Promise((resolve) => server.once("listening", resolve));
   const port = (server.address() as AddressInfo).port;
   const baseUrl = `http://localhost:${port}`;
 
   const close = async () => {
-    await new Promise((resolve) => server.close(resolve));
+    activeServers.delete(server);
+    if (typeof (server as any).closeAllConnections === "function") {
+      (server as any).closeAllConnections();
+    }
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await prisma.$disconnect().catch(() => {});
   };
 
   const request = {
@@ -186,4 +205,31 @@ export async function setupTestServer(): Promise<TestServer> {
   };
 
   return { baseUrl, request, close };
+}
+
+export async function closeAllTestServers(): Promise<void> {
+  for (const s of activeServers) {
+    try {
+      if (typeof (s as any).closeAllConnections === "function") {
+        (s as any).closeAllConnections();
+      }
+      s.close();
+    } catch {}
+  }
+  activeServers.clear();
+  await prisma.$disconnect().catch(() => {});
+}
+
+export async function createTestContext(): Promise<{
+  server: TestServer;
+  testUsers: Awaited<ReturnType<typeof getTestUsers>>;
+}> {
+  const server = await setupTestServer();
+  try {
+    const testUsers = await getTestUsers(server);
+    return { server, testUsers };
+  } catch (error) {
+    await server.close();
+    throw error;
+  }
 }
