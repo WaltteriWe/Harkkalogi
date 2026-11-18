@@ -23,6 +23,7 @@ export const savePlanSchema = z.object({
       .enum(["DRAFT", "SUBMITTED", "APPROVED", "NEEDS_CHANGES"])
       .optional(),
     teacherFeedback: z.string().optional(),
+    internshipId: z.union([z.number(), z.string()]).optional(),
   }),
 });
 

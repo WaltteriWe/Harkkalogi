@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { useInternship } from "@/context/InternshipContext";
 import Image from "next/image";
 import { Role, getLandingPath } from "@/lib/auth-routes";
 
@@ -71,6 +72,30 @@ export default function Sidebar({ role, userName }: SidebarProps = {}) {
   const { user, logout } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [prevPathname, setPrevPathname] = useState(pathname);
+
+  let activeInternship: any = null;
+  try {
+    const internshipCtx = useInternship();
+    activeInternship = internshipCtx?.activeInternship || null;
+  } catch {
+    // In standalone testing contexts where InternshipProvider may not be wrapped
+  }
+
+  const isDone = activeInternship?.status === "completed" || activeInternship?.isReportApproved;
+  const isOngoing = activeInternship?.status === "ongoing";
+
+  let statusBadgeText = "Ei aloitettu";
+  let statusBadgeClass = "pill-neutral text-[10px] py-0.5 px-1.5 font-medium";
+
+  if (isDone) {
+    statusBadgeText = "Valmis ✓";
+    statusBadgeClass = "pill-success text-[10px] py-0.5 px-1.5 font-medium";
+  } else if (isOngoing) {
+    statusBadgeText = activeInternship?.currentStepNumber
+      ? `Vaihe ${activeInternship.currentStepNumber}/6`
+      : "Käynnissä";
+    statusBadgeClass = "pill-brand text-[10px] py-0.5 px-1.5 font-medium";
+  }
 
   const activeRole: Role = role ?? user?.role ?? "student";
   const activeUserName = userName ?? user?.name ?? "User";
@@ -214,6 +239,31 @@ export default function Sidebar({ role, userName }: SidebarProps = {}) {
               ))}
             </nav>
 
+            {/* Active Internship Card */}
+            {activeRole === "student" && activeInternship && (
+              <Link
+                href="/"
+                onClick={() => setIsOpen(false)}
+                className="group flex flex-col gap-1.5 rounded-card border border-sidebar-raised bg-sidebar-raised/50 p-3 transition-colors hover:bg-sidebar-raised hover:border-brand/40 text-left cursor-pointer"
+                title="Klikkaa siirtyäksesi harjoittelun yleisnäkymään ja vaihtaaksesi jaksoa"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-medium uppercase tracking-wider text-ink-inverse-muted group-hover:text-brand-light transition-colors">
+                    Valittu harjoittelu
+                  </span>
+                  <span className={statusBadgeClass}>
+                    {statusBadgeText}
+                  </span>
+                </div>
+                <p className="truncate text-sm font-semibold text-white group-hover:text-brand-light transition-colors">
+                  {activeInternship.title}
+                </p>
+                <p className="truncate text-xs text-ink-inverse-muted">
+                  {activeInternship.company || "Työpaikka ei määritelty"} · {activeInternship.credits} op
+                </p>
+              </Link>
+            )}
+
             <div className="user-badge flex items-center justify-between gap-2 mt-2">
               <div className="min-w-0">
                 <p className="text-xs uppercase tracking-wider text-ink-inverse-muted">
@@ -283,6 +333,30 @@ export default function Sidebar({ role, userName }: SidebarProps = {}) {
             </React.Fragment>
           ))}
         </nav>
+
+        {/* Active Internship Card */}
+        {activeRole === "student" && activeInternship && (
+          <Link
+            href="/"
+            className="group mb-3 flex flex-col gap-1.5 rounded-card border border-sidebar-raised bg-sidebar-raised/50 p-3 transition-colors hover:bg-sidebar-raised hover:border-brand/40 cursor-pointer focus-visible:outline-2 focus-visible:outline-brand text-left"
+            title="Klikkaa siirtyäksesi harjoittelun yleisnäkymään ja vaihtaaksesi jaksoa"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-medium uppercase tracking-wider text-ink-inverse-muted group-hover:text-brand-light transition-colors">
+                Valittu harjoittelu
+              </span>
+              <span className={statusBadgeClass}>
+                {statusBadgeText}
+              </span>
+            </div>
+            <p className="truncate text-sm font-semibold text-white group-hover:text-brand-light transition-colors">
+              {activeInternship.title}
+            </p>
+            <p className="truncate text-xs text-ink-inverse-muted">
+              {activeInternship.company || "Työpaikka ei määritelty"} · {activeInternship.credits} op
+            </p>
+          </Link>
+        )}
 
         <div className="user-badge flex items-center justify-between gap-2">
           <div className="min-w-0">

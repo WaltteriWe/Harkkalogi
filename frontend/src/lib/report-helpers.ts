@@ -10,6 +10,7 @@ export interface Attachment {
 
 export interface ReportState {
   id: string;
+  internshipId?: number;
   title: string;
   company: string;
   startDate: string; // yyyy-mm-dd
@@ -116,6 +117,7 @@ export function toReportPayload(
   status: "DRAFT" | "SUBMITTED"
 ) {
   return {
+    internshipId: report.internshipId,
     title: report.title,
     company: report.company,
     startDate: report.startDate,
@@ -136,6 +138,7 @@ export interface RawBackendReview {
 
 export interface RawBackendReport {
   id: string | number;
+  internshipId?: number;
   title?: string;
   company?: string;
   status?: string;
@@ -195,6 +198,7 @@ export function mapBackendReport(r: RawBackendReport): ReportState {
 
   return createReportState({
     id: String(r.id),
+    internshipId: typeof r.internshipId === "number" ? r.internshipId : undefined,
     title: r.title || "Report",
     company: r.company || r.internship?.company || "",
     startDate:

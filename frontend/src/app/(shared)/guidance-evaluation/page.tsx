@@ -145,16 +145,13 @@ function GuidanceEvaluationContent() {
   const queryInternshipId = searchParams.get("internshipId") || searchParams.get("id");
   const internshipId = queryInternshipId
     ? parseInt(queryInternshipId, 10)
-    : activeInternship?.backendId || 1;
+    : activeInternship?.backendId || (activeInternship?.id === "internship-2" ? 2 : 1);
 
   const isTeacher = user?.role === "teacher" || (user?.role as string) === "TEACHER";
   const leaveHref = isTeacher ? "/teacher-view" : "/";
   const leaveLabel = isTeacher ? "← Back to teacher view" : "← Back to overview";
 
-  const isActualReportApproved =
-    Boolean(activeInternship?.isReportApproved) ||
-    reports.some((r) => r.status === "approved") ||
-    report?.status === "approved";
+  const isActualReportApproved = Boolean(activeInternship?.isReportApproved);
   const isLocked = isTeacher ? false : isEvaluationLocked ?? !isActualReportApproved;
 
   // Local state for dynamic checklist items & star evaluations
@@ -193,6 +190,31 @@ function GuidanceEvaluationContent() {
     setIsLoading(true);
     setLoadError(null);
 
+    // If activeInternship has pre-seeded evaluation data (e.g. Eetu), initialize with it
+    const evalData = activeInternship?.evaluation;
+    if (evalData) {
+      if (Array.isArray(evalData.checklist)) {
+        setSelectedCheckboxes(evalData.checklist);
+      }
+      if (evalData.ratings && typeof evalData.ratings === "object") {
+        setStudentRatings(evalData.ratings);
+      }
+      const st = (evalData.status || "DRAFT").toUpperCase();
+      setEvaluationStatus(st === "SUBMITTED" ? "SUBMITTED" : "DRAFT");
+      setSubmittedAt(evalData.submittedAt || null);
+    } else {
+      setSelectedCheckboxes(["tavoitteet", "palaute"]);
+      setStudentRatings({
+        tyopaikkaohjaus: 0,
+        tehtavat_vastaavuus: 0,
+        tyoyhteiso: 0,
+        oppilaitos_ohjaus: 0,
+        kokonaisarvio: 0,
+      });
+      setEvaluationStatus("DRAFT");
+      setSubmittedAt(null);
+    }
+
     apiFetch<{ evaluation: any }>(`/internships/${internshipId}/guidance-evaluation`)
       .then((data) => {
         if (!isMounted) return;
@@ -214,17 +236,21 @@ function GuidanceEvaluationContent() {
           if (isTeacher) {
             setStudentRatings(TEACHER_SAMPLE_RATINGS);
           }
-          setEvaluationStatus("DRAFT");
-          setSubmittedAt(null);
+          if (!evalData) {
+            setEvaluationStatus("DRAFT");
+            setSubmittedAt(null);
+          }
         }
       })
       .catch((err) => {
         if (!isMounted) return;
         if (err?.status === 404) {
           if (isTeacher) setStudentRatings(TEACHER_SAMPLE_RATINGS);
-          setEvaluationStatus("DRAFT");
+          if (!evalData) setEvaluationStatus("DRAFT");
         } else {
-          setLoadError(err instanceof Error ? err.message : "Failed to load evaluation.");
+          if (!evalData) {
+            setLoadError(err instanceof Error ? err.message : "Failed to load evaluation.");
+          }
         }
       })
       .finally(() => {
@@ -234,7 +260,7 @@ function GuidanceEvaluationContent() {
     return () => {
       isMounted = false;
     };
-  }, [internshipId, isTeacher]);
+  }, [internshipId, isTeacher, activeInternship]);
 
   const isSubmitted = evaluationStatus === "SUBMITTED";
   const isEffectivelyReadOnly = isTeacher || isLocked || isSubmitted;

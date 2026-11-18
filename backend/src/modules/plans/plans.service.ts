@@ -44,9 +44,12 @@ export function formatPlan(plan: any) {
 }
 
 export class PlansService {
-  async getMyPlan(studentId: number) {
+  async getMyPlan(studentId: number, internshipId?: number) {
     const plan = await prisma.plan.findFirst({
-      where: { studentId },
+      where: {
+        studentId,
+        ...(internshipId ? { internshipId } : {}),
+      },
       include: {
         internship: true,
         student: { select: { id: true, name: true, email: true } },
@@ -77,9 +80,15 @@ export class PlansService {
 
   async savePlan(user: AuthUser, input: SavePlanInput, targetPlanId?: number) {
     const studentId = user.id;
+    const requestedInternshipId = input.internshipId ? parseInt(String(input.internshipId), 10) : undefined;
 
     let existing = targetPlanId
       ? await prisma.plan.findUnique({ where: { id: targetPlanId } })
+      : requestedInternshipId
+      ? await prisma.plan.findFirst({
+          where: { studentId, internshipId: requestedInternshipId },
+          orderBy: { createdAt: "desc" },
+        })
       : await prisma.plan.findFirst({
           where: { studentId },
           orderBy: { createdAt: "desc" },
@@ -184,10 +193,12 @@ export class PlansService {
 
       return formatPlan(updated);
     } else {
-      // Find or create internship without an attached plan
-      let internship = await prisma.internship.findFirst({
-        where: { studentId, plan: null },
-      });
+      // Find or create internship without an attached plan, or match requested internship
+      let internship = requestedInternshipId
+        ? await prisma.internship.findUnique({ where: { id: requestedInternshipId } })
+        : await prisma.internship.findFirst({
+            where: { studentId, plan: null },
+          });
 
       if (!internship) {
         internship = await prisma.internship.create({

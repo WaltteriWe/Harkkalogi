@@ -121,49 +121,59 @@ describe("draft-registry: offline detection", () => {
 });
 
 describe("storage-helpers: purgeHarkkalogiStorage", () => {
-  it("removes all harkkalogi_ keys while preserving unrelated localStorage keys", () => {
-    const mockStore: Record<string, string> = {
+  it("removes all harkkalogi_ keys while preserving unrelated localStorage and sessionStorage keys", () => {
+    const mockLocalStore: Record<string, string> = {
       harkkalogi_user: '{"id": 1, "name": "Student"}',
       harkkalogi_token: "jwt-token-xyz",
-      harkkalogi_plan_sara: '{"scope": "h1"}',
-      harkkalogi_reports_sara: '{"reports": []}',
       other_app_preference: "dark_mode",
       theme_setting: "contrast",
     };
+    const mockSessionStore: Record<string, string> = {
+      harkkalogi_plan_sara: '{"scope": "h1"}',
+      harkkalogi_reports_sara: '{"reports": []}',
+      harkkalogi_active_internship: "internship-1",
+      session_preference: "tab_2",
+    };
 
-    const mockStorage = {
+    const createMockStorage = (store: Record<string, string>) => ({
       get length() {
-        return Object.keys(mockStore).length;
+        return Object.keys(store).length;
       },
       key(idx: number) {
-        return Object.keys(mockStore)[idx] ?? null;
+        return Object.keys(store)[idx] ?? null;
       },
       getItem(key: string) {
-        return mockStore[key] ?? null;
+        return store[key] ?? null;
       },
       setItem(key: string, val: string) {
-        mockStore[key] = val;
+        store[key] = val;
       },
       removeItem(key: string) {
-        delete mockStore[key];
+        delete store[key];
       },
-    };
+    });
 
     const originalWindow = (globalThis as unknown as { window?: unknown }).window;
     Object.defineProperty(globalThis, "window", {
-      value: { localStorage: mockStorage },
+      value: {
+        localStorage: createMockStorage(mockLocalStore),
+        sessionStorage: createMockStorage(mockSessionStore),
+      },
       configurable: true,
       writable: true,
     });
 
     purgeHarkkalogiStorage();
 
-    assert.equal(mockStore.harkkalogi_user, undefined);
-    assert.equal(mockStore.harkkalogi_token, undefined);
-    assert.equal(mockStore.harkkalogi_plan_sara, undefined);
-    assert.equal(mockStore.harkkalogi_reports_sara, undefined);
-    assert.equal(mockStore.other_app_preference, "dark_mode");
-    assert.equal(mockStore.theme_setting, "contrast");
+    assert.equal(mockLocalStore.harkkalogi_user, undefined);
+    assert.equal(mockLocalStore.harkkalogi_token, undefined);
+    assert.equal(mockLocalStore.other_app_preference, "dark_mode");
+    assert.equal(mockLocalStore.theme_setting, "contrast");
+
+    assert.equal(mockSessionStore.harkkalogi_plan_sara, undefined);
+    assert.equal(mockSessionStore.harkkalogi_reports_sara, undefined);
+    assert.equal(mockSessionStore.harkkalogi_active_internship, undefined);
+    assert.equal(mockSessionStore.session_preference, "tab_2");
 
     Object.defineProperty(globalThis, "window", {
       value: originalWindow,

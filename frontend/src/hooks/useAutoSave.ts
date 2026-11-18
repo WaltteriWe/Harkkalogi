@@ -34,46 +34,69 @@ export function useAutoSave<T>({
   const changeVersionRef = useRef<number>(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const isSavingRef = useRef<boolean>(false);
+  const savePromiseRef = useRef<Promise<boolean> | null>(null);
   const onSaveRef = useRef(onSave);
   onSaveRef.current = onSave;
 
   const flush = useCallback(
-    async (isBackground = false) => {
+    async (isBackground = false): Promise<boolean> => {
       if (timerRef.current) {
         clearTimeout(timerRef.current);
         timerRef.current = null;
       }
 
-      if (!isDirtyRef.current || isSavingRef.current || !enabled) {
-        return;
+      if (!enabled) {
+        return true;
+      }
+
+      // If an auto-save is already in-flight, wait for it
+      if (isSavingRef.current && savePromiseRef.current) {
+        const inFlightResult = await savePromiseRef.current;
+        if (!isDirtyRef.current) {
+          return inFlightResult;
+        }
+      }
+
+      if (!isDirtyRef.current) {
+        return true;
       }
 
       const versionAtStart = changeVersionRef.current;
       isSavingRef.current = true;
       setStatus("saving");
 
-      try {
-        await onSaveRef.current(latestDataRef.current, isBackground);
-        if (changeVersionRef.current === versionAtStart) {
-          isDirtyRef.current = false;
-          setStatus("saved");
-          setLastSavedAt(formatCurrentTime());
-        } else {
-          // Newer changes were typed while onSave was in-flight
-          isDirtyRef.current = true;
-          setStatus("unsaved");
-          if (!timerRef.current) {
-            timerRef.current = setTimeout(() => {
-              flush();
-            }, debounceMs);
+      const runSave = async (): Promise<boolean> => {
+        try {
+          await onSaveRef.current(latestDataRef.current, isBackground);
+          if (changeVersionRef.current === versionAtStart) {
+            isDirtyRef.current = false;
+            setStatus("saved");
+            setLastSavedAt(formatCurrentTime());
+            return true;
+          } else {
+            // Newer changes were typed while onSave was in-flight
+            isDirtyRef.current = true;
+            setStatus("unsaved");
+            if (!timerRef.current) {
+              timerRef.current = setTimeout(() => {
+                flush();
+              }, debounceMs);
+            }
+            return false;
           }
+        } catch (err) {
+          setStatus("error");
+          console.error("Auto-save draft failed:", err);
+          return false;
+        } finally {
+          isSavingRef.current = false;
+          savePromiseRef.current = null;
         }
-      } catch (err) {
-        setStatus("error");
-        console.error("Auto-save draft failed:", err);
-      } finally {
-        isSavingRef.current = false;
-      }
+      };
+
+      const p = runSave();
+      savePromiseRef.current = p;
+      return await p;
     },
     [enabled, debounceMs]
   );
@@ -97,7 +120,7 @@ export function useAutoSave<T>({
     if (typeof window === "undefined") return;
 
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (isDirtyRef.current || isSavingRef.current) {
+      if (isDirtyRef.current || isSavingRef.current || status === "error") {
         e.preventDefault();
         e.returnValue = "";
       }
@@ -105,7 +128,7 @@ export function useAutoSave<T>({
 
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, []);
+  }, [status]);
 
   // 2. Tab switch or minimize (visibilitychange)
   useEffect(() => {

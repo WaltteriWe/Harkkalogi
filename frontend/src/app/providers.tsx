@@ -9,11 +9,11 @@ import { AuthProvider } from "../context/AuthContext";
 export default function Providers({ children }: { children: ReactNode }) {
   return (
     <AuthProvider>
-      <ReportProvider>
-        <PlanProvider>
-          <InternshipProvider>{children}</InternshipProvider>
-        </PlanProvider>
-      </ReportProvider>
+      <InternshipProvider>
+        <ReportProvider>
+          <PlanProvider>{children}</PlanProvider>
+        </ReportProvider>
+      </InternshipProvider>
     </AuthProvider>
   );
 }

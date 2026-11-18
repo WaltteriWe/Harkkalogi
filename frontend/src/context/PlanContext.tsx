@@ -11,6 +11,7 @@ import React, {
 } from "react";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "./AuthContext";
+import { useInternship } from "./InternshipContext";
 import {
   useAutoSave,
   formatCurrentTime,
@@ -69,34 +70,44 @@ export const EMPTY_PLAN: PlanState = {
 export const DEFAULT_PLAN: PlanState = EMPTY_PLAN;
 
 const STORAGE_KEY = "harkkalogi_plan_store_v1";
+let currentInternshipId = "internship-1";
 
-function getStorageKey(): string {
+function getStorageKey(internshipId?: string): string {
+  const activeId = internshipId || currentInternshipId || "internship-1";
   if (typeof window !== "undefined") {
     try {
       const authUser = window.localStorage.getItem("harkkalogi_auth_user");
       if (authUser) {
         const parsed = JSON.parse(authUser);
         if (parsed?.email) {
-          return `harkkalogi_plan_${parsed.email.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+          return `harkkalogi_plan_${parsed.email.replace(/[^a-zA-Z0-9_-]/g, "_")}_${activeId}`;
         }
       }
     } catch {
       // Ignore
     }
   }
-  return STORAGE_KEY;
+  return `${STORAGE_KEY}_${activeId}`;
 }
 
 let currentPlan: PlanState = EMPTY_PLAN;
 let isLoadedFromStorage = false;
 let listeners: Array<() => void> = [];
 
-function loadFromStorage(): PlanState {
+function loadFromStorage(internshipId?: string): PlanState {
   if (isLoadedFromStorage) return currentPlan;
   if (typeof window !== "undefined") {
     try {
-      const key = getStorageKey();
-      const stored = window.localStorage.getItem(key);
+      const key = getStorageKey(internshipId);
+      let stored = window.sessionStorage.getItem(key);
+      // Migration fallback from localStorage if present
+      if (!stored && window.localStorage) {
+        stored = window.localStorage.getItem(key);
+        if (stored) {
+          window.sessionStorage.setItem(key, stored);
+          window.localStorage.removeItem(key);
+        }
+      }
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed && Array.isArray(parsed.learningGoals)) {
@@ -127,7 +138,7 @@ function setPlan(next: PlanState | ((prev: PlanState) => PlanState)) {
   if (typeof window !== "undefined") {
     try {
       const key = getStorageKey();
-      window.localStorage.setItem(key, JSON.stringify(resolved));
+      window.sessionStorage.setItem(key, JSON.stringify(resolved));
     } catch {
       // Ignore
     }
@@ -215,8 +226,17 @@ const PlanContext = createContext<PlanContextType | undefined>(undefined);
 export function PlanProvider({ children }: { children: ReactNode }) {
   const plan = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const { isAuthenticated } = useAuth();
+  const {
+    activeInternshipId,
+    activeInternship,
+    setScope: setInternshipScope,
+    refreshInternships,
+  } = useInternship();
 
-  // Load plan from backend on mount when authenticated, or reset when logged out
+  // Keep module-level currentInternshipId in sync
+  currentInternshipId = activeInternshipId || "internship-1";
+
+  // Sync plan whenever activeInternshipId, activeInternship or auth changes
   useEffect(() => {
     if (!isAuthenticated) {
       currentPlan = EMPTY_PLAN;
@@ -224,63 +244,94 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       setPlan(EMPTY_PLAN);
       return;
     }
-    let isMounted = true;
 
-    // Force reload from user-specific storage when user is known
+    currentInternshipId = activeInternshipId || "internship-1";
     isLoadedFromStorage = false;
-    const initialForUser = loadFromStorage();
-    setPlan(initialForUser);
 
-    apiFetch<{ plan: Partial<PlanState> | null }>("/plans/my-plan")
-      .then((data) => {
-        if (!isMounted) return;
-        if (!data.plan) {
-          setPlan(EMPTY_PLAN);
-          return;
+    // 1. Check session storage for this specific internship
+    const storageKey = getStorageKey(activeInternshipId);
+    let localDraft: PlanState | null = null;
+    if (typeof window !== "undefined") {
+      try {
+        let stored = window.sessionStorage.getItem(storageKey);
+        if (!stored && window.localStorage) {
+          stored = window.localStorage.getItem(storageKey);
+          if (stored) {
+            window.sessionStorage.setItem(storageKey, stored);
+            window.localStorage.removeItem(storageKey);
+          }
         }
-        const p = data.plan;
-        setPlan((prev) => ({
-          ...prev,
-          scope: p.scope || prev.scope || "h1",
-          company: p.company ?? prev.company,
-          jobTitle: p.jobTitle ?? prev.jobTitle,
-          supervisorName: p.supervisorName ?? prev.supervisorName,
-          supervisorContact: p.supervisorContact ?? prev.supervisorContact,
-          startDate: p.startDate ?? prev.startDate,
-          endDate: p.endDate ?? prev.endDate,
-          plannedHours: p.plannedHours ?? prev.plannedHours,
-          hoursPerWeek: p.hoursPerWeek ?? prev.hoursPerWeek,
-          jobDescription: p.jobDescription ?? prev.jobDescription,
-          learningGoals: Array.isArray(p.learningGoals)
-            ? p.learningGoals
-            : prev.learningGoals,
-          assessment: p.assessment ?? prev.assessment,
-          status: p.status || prev.status,
-          submittedAt: p.submittedAt ? p.submittedAt.split("T")[0] : prev.submittedAt,
-          approvedAt: p.approvedAt ? p.approvedAt.split("T")[0] : prev.approvedAt,
-          teacherFeedback: p.teacherFeedback ?? prev.teacherFeedback,
-        }));
-      })
-      .catch((err) => {
-        console.error("Failed to load plan from backend:", err);
-      });
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed && Array.isArray(parsed.learningGoals)) {
+            localDraft = { ...EMPTY_PLAN, ...parsed };
+          }
+        }
+      } catch {
+        // Ignore
+      }
+    }
 
-    return () => {
-      isMounted = false;
-    };
-  }, [isAuthenticated]);
+    const ip = activeInternship?.plan;
+
+    // If local draft has unsaved work and official plan is draft, prioritize local work
+    if (localDraft && (!ip || ip.status === "draft")) {
+      setPlan(localDraft);
+      return;
+    }
+
+    // If active internship has plan data (e.g. from backend or Eetu synthesis)
+    if (ip) {
+      setPlan({
+        scope: activeInternship.scope || "h1",
+        company: ip.company || activeInternship.company || "",
+        jobTitle: ip.jobTitle || "",
+        supervisorName: ip.supervisorName || activeInternship.supervisorName || "",
+        supervisorContact: ip.supervisorContact || "",
+        startDate: ip.startDate || activeInternship.startDate || "",
+        endDate: ip.endDate || activeInternship.endDate || "",
+        plannedHours: ip.plannedHours || activeInternship.targetHours || 400,
+        hoursPerWeek: ip.hoursPerWeek || 37.5,
+        jobDescription: ip.jobDescription || "",
+        learningGoals: Array.isArray(ip.learningGoals) ? ip.learningGoals : [],
+        assessment: ip.assessment || "",
+        status: ip.status || "draft",
+        lastSavedAt: "",
+        submittedAt: ip.submittedAt || null,
+        approvedAt: ip.approvedAt || null,
+        teacherFeedback: ip.teacherFeedback || "",
+      });
+      return;
+    }
+
+    // Otherwise, clean template for this internship
+    setPlan({
+      ...EMPTY_PLAN,
+      scope: activeInternship?.scope || "h1",
+      company: activeInternship?.company || "",
+      plannedHours: activeInternship?.targetHours || 400,
+      startDate: activeInternship?.startDate || "",
+      endDate: activeInternship?.endDate || "",
+      supervisorName: activeInternship?.supervisorName || "",
+    });
+  }, [isAuthenticated, activeInternshipId, activeInternship]);
 
   const handleAutoSave = useCallback(
     async (p: PlanState, isBackground = false) => {
       if (!isAuthenticated || p.status !== "draft") return;
 
-      await apiFetch("/plans/my-plan", {
+      const bid = activeInternship?.backendId;
+      const url = bid ? `/plans/my-plan?internshipId=${bid}` : "/plans/my-plan";
+      await apiFetch(url, {
         method: "PATCH",
-        body: JSON.stringify(toPlanPayload(p, "DRAFT")),
+        body: JSON.stringify({
+          ...toPlanPayload(p, "DRAFT"),
+          internshipId: bid,
+        }),
         keepalive: isBackground,
       });
     },
-    [isAuthenticated]
+    [isAuthenticated, activeInternship]
   );
 
   const {
@@ -299,12 +350,15 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isAuthenticated) return;
     return registerDraftFlusher(async (): Promise<boolean> => {
-      if (plan.status !== "draft" || saveStatus === "saved") {
+      if (plan.status !== "draft") {
+        return true;
+      }
+      if (saveStatus === "saved") {
         return true;
       }
       try {
-        await flush();
-        return true;
+        const success = await flush();
+        return success === true;
       } catch {
         return false;
       }
@@ -318,9 +372,10 @@ export function PlanProvider({ children }: { children: ReactNode }) {
         scope,
         plannedHours: scope === "combined" ? 800 : 400,
       }));
+      setInternshipScope(scope);
       notifyChange();
     },
-    [notifyChange]
+    [setInternshipScope, notifyChange]
   );
 
   const updatePlan = useCallback(
@@ -438,10 +493,16 @@ export function PlanProvider({ children }: { children: ReactNode }) {
 
     if (isAuthenticated) {
       try {
-        await apiFetch("/plans/my-plan", {
+        const bid = activeInternship?.backendId;
+        const url = bid ? `/plans/my-plan?internshipId=${bid}` : "/plans/my-plan";
+        await apiFetch(url, {
           method: "PATCH",
-          body: JSON.stringify(toPlanPayload(plan, "SUBMITTED")),
+          body: JSON.stringify({
+            ...toPlanPayload(plan, "SUBMITTED"),
+            internshipId: bid,
+          }),
         });
+        await refreshInternships();
       } catch (err) {
         console.error("Failed to submit plan to backend:", err);
       }
@@ -459,7 +520,16 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   const resetPlan = useCallback(() => {
     if (typeof window !== "undefined") {
       const key = getStorageKey();
-      window.localStorage.removeItem(key);
+      try {
+        window.sessionStorage.removeItem(key);
+      } catch {
+        // Ignore
+      }
+      try {
+        window.localStorage.removeItem(key);
+      } catch {
+        // Ignore
+      }
     }
     setPlan(EMPTY_PLAN);
   }, []);

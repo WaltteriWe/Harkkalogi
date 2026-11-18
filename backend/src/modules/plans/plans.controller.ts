@@ -6,7 +6,10 @@ export class PlansController {
   async getMyPlan(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const user = req.user!;
-      const plan = await plansService.getMyPlan(user.id);
+      const internshipId = req.query.internshipId
+        ? parseInt(String(req.query.internshipId), 10)
+        : undefined;
+      const plan = await plansService.getMyPlan(user.id, internshipId);
       res.status(200).json({ plan });
     } catch (error) {
       next(error);

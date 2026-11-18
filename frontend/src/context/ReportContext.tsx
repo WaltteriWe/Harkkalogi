@@ -11,6 +11,7 @@ import React, {
 } from "react";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "./AuthContext";
+import { useInternship } from "./InternshipContext";
 import {
   useAutoSave,
   formatCurrentTime,
@@ -35,22 +36,24 @@ import {
 } from "@/lib/report-helpers";
 
 const STORAGE_KEY = "harkkalogi_report_store_v4";
+let currentReportInternshipId = "internship-1";
 
-function getReportStorageKey(): string {
+function getReportStorageKey(internshipId?: string): string {
+  const activeId = internshipId || currentReportInternshipId || "internship-1";
   if (typeof window !== "undefined") {
     try {
       const authUser = window.localStorage.getItem("harkkalogi_auth_user");
       if (authUser) {
         const parsed = JSON.parse(authUser);
         if (parsed?.email) {
-          return `harkkalogi_reports_${parsed.email.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+          return `harkkalogi_reports_${parsed.email.replace(/[^a-zA-Z0-9_-]/g, "_")}_${activeId}`;
         }
       }
     } catch {
       // Ignore
     }
   }
-  return STORAGE_KEY;
+  return `${STORAGE_KEY}_${activeId}`;
 }
 
 let currentStore: ReportStoreState = EMPTY_STORE;
@@ -62,7 +65,15 @@ function loadFromStorage(): ReportStoreState {
   if (typeof window !== "undefined") {
     try {
       const key = getReportStorageKey();
-      const stored = window.localStorage.getItem(key);
+      let stored = window.sessionStorage.getItem(key);
+      // Migration fallback from localStorage if present
+      if (!stored && window.localStorage) {
+        stored = window.localStorage.getItem(key);
+        if (stored) {
+          window.sessionStorage.setItem(key, stored);
+          window.localStorage.removeItem(key);
+        }
+      }
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed.reports && Array.isArray(parsed.reports) && parsed.reports.length > 0) {
@@ -101,7 +112,7 @@ function setStore(
   if (typeof window !== "undefined") {
     try {
       const key = getReportStorageKey();
-      window.localStorage.setItem(key, JSON.stringify(resolved));
+      window.sessionStorage.setItem(key, JSON.stringify(resolved));
     } catch {
       // Ignore
     }
@@ -168,6 +179,9 @@ const ReportContext = createContext<ReportContextType | undefined>(undefined);
 export function ReportProvider({ children }: { children: ReactNode }) {
   const store = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const { isAuthenticated, user } = useAuth();
+  const { activeInternshipId, activeInternship, refreshInternships } = useInternship();
+
+  currentReportInternshipId = activeInternshipId || "internship-1";
 
   const activeReport = useMemo(() => {
     return (
@@ -259,6 +273,73 @@ export function ReportProvider({ children }: { children: ReactNode }) {
     };
   }, [isAuthenticated, user?.id, user?.role, user?.email]);
 
+  // Switch active report whenever activeInternshipId or activeInternship changes
+  useEffect(() => {
+    if (!isAuthenticated || !activeInternship) return;
+    currentReportInternshipId = activeInternshipId || "internship-1";
+
+    const rep = activeInternship.report;
+    const bid = activeInternship.backendId;
+    const actId = activeInternship.id;
+
+    setStore((prev) => {
+      // 1. Look for report matching this internship in current store
+      const matching = prev.reports.find((r) => {
+        if (rep?.id && String(r.id) === String(rep.id)) return true;
+        if (bid && r.internshipId === bid) return true;
+        if (r.id === `report-draft-${actId}` || r.id === `report-${actId}`) return true;
+        if (actId === "internship-1" && (r.title.includes("Harjoittelu 1") || r.company === "Reaktor")) return true;
+        if (actId === "internship-2" && (r.title.includes("Harjoittelu 2") || r.company === "Futurice")) return true;
+        return false;
+      });
+
+      if (matching) {
+        return {
+          ...prev,
+          activeReportId: matching.id,
+        };
+      }
+
+      // 2. If rep info exists on activeInternship, add it to store
+      if (rep) {
+        const newReport = createReportState({
+          id: rep.id || `report-${actId}`,
+          internshipId: bid,
+          title: rep.status === "approved" || rep.status === "submitted"
+            ? `${activeInternship.title} loppuraportti (${typeof rep.totalHours === "number" ? rep.totalHours : activeInternship.targetHours} h)`
+            : `${activeInternship.title} loppuraportti`,
+          company: activeInternship.company,
+          status: rep.status,
+          totalHours: typeof rep.totalHours === "number" ? rep.totalHours : activeInternship.targetHours,
+          tasksAndLearning: rep.tasksAndLearning || "",
+          submittedAt: rep.submittedAt || null,
+          approvedAt: rep.approvedAt || null,
+          attachments: (rep.attachments as any) || [],
+          teacherFeedback: rep.teacherFeedback || "",
+        });
+
+        return {
+          reports: [...prev.reports, newReport],
+          activeReportId: newReport.id,
+        };
+      }
+
+      // 3. Otherwise generate fresh draft for this internship
+      const freshDraft = createReportState({
+        id: `report-draft-${actId}`,
+        internshipId: bid,
+        title: `${activeInternship.title} loppuraportti`,
+        company: activeInternship.company,
+        totalHours: activeInternship.targetHours,
+      });
+
+      return {
+        reports: [...prev.reports, freshDraft],
+        activeReportId: freshDraft.id,
+      };
+    });
+  }, [isAuthenticated, activeInternshipId, activeInternship]);
+
   // Central active report updater: encapsulates immutable store mapping and triggers notifyChange
   const updateActiveReport = useCallback(
     (
@@ -292,7 +373,10 @@ export function ReportProvider({ children }: { children: ReactNode }) {
       if (!isAuthenticated) return { success: true, id: rep.id };
 
       const isNumericId = /^\d+$/.test(rep.id);
-      const payload = toReportPayload(rep, status);
+      const payload = {
+        ...toReportPayload(rep, status),
+        internshipId: rep.internshipId || activeInternship?.backendId,
+      };
 
       try {
         if (isNumericId) {
@@ -373,12 +457,15 @@ export function ReportProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isAuthenticated) return;
     return registerDraftFlusher(async (): Promise<boolean> => {
-      if (activeReport.status !== "draft" || saveStatus === "saved") {
+      if (activeReport.status !== "draft") {
+        return true;
+      }
+      if (saveStatus === "saved") {
         return true;
       }
       try {
-        await flush();
-        return true;
+        const success = await flush();
+        return success === true;
       } catch {
         return false;
       }
@@ -541,6 +628,7 @@ export function ReportProvider({ children }: { children: ReactNode }) {
       if (!res.success) {
         console.warn("Backend submit failed, continuing with local store submission update.");
       }
+      await refreshInternships();
     }
 
     updateActiveReport({
