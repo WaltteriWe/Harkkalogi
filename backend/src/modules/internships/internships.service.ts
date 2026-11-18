@@ -1,5 +1,5 @@
 import { prisma } from "../../lib/prisma.ts";
-import { computeInternshipWorkflow } from "./internship-workflow.service.ts";
+import { computeInternshipWorkflow, syncWorkflowState } from "./internship-workflow.service.ts";
 
 export class InternshipsService {
   async listInternships(filters: { studentId?: number; teacherId?: number }) {
@@ -45,6 +45,19 @@ export class InternshipsService {
     };
   }
 
+  async setCreditsPutToOma(internshipId: number, creditsPutToOma: boolean) {
+    const updated = await prisma.internship.update({
+      where: { id: internshipId },
+      data: {
+        creditsPutToOma,
+        creditsPutToOmaAt: creditsPutToOma ? new Date() : null,
+      },
+    });
+
+    await syncWorkflowState(internshipId);
+    return updated;
+  }
+
   async getGuidanceEvaluation(internshipId: number) {
     return prisma.guidanceEvaluation.findUnique({
       where: { internshipId },
@@ -62,7 +75,21 @@ export class InternshipsService {
     }
   ) {
     const isSubmitted = data.status === "SUBMITTED";
-    return prisma.guidanceEvaluation.upsert({
+
+    if (isSubmitted) {
+      const internship = await prisma.internship.findUnique({
+        where: { id: internshipId },
+        include: { reports: { include: { reviews: true } }, plan: true },
+      });
+      if (internship) {
+        const wf = computeInternshipWorkflow(internship);
+        if (wf.isEvaluationLocked) {
+          throw new Error("Guidance evaluation is locked until the internship report is approved.");
+        }
+      }
+    }
+
+    const result = await prisma.guidanceEvaluation.upsert({
       where: { internshipId },
       update: {
         checklist: data.checklist !== undefined ? (data.checklist as any) : undefined,
@@ -81,6 +108,12 @@ export class InternshipsService {
         submittedAt: isSubmitted ? new Date() : null,
       },
     });
+
+    if (isSubmitted) {
+      await syncWorkflowState(internshipId);
+    }
+
+    return result;
   }
 }
 

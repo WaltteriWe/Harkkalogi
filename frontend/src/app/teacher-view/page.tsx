@@ -10,6 +10,8 @@ interface QueueItem {
   company: string;
   submittedDate: string;
   hours: number;
+  credits?: number;
+  creditsPutToOma?: boolean;
   status: "needs_review" | "approved" | "changes_requested";
   feedback?: string;
 }
@@ -23,6 +25,8 @@ const INITIAL_QUEUE_ITEMS: QueueItem[] = [
     company: "Nordic Pixel Oy",
     submittedDate: "1.10.2026",
     hours: 800,
+    credits: 30,
+    creditsPutToOma: false,
     status: "needs_review",
   },
   {
@@ -33,6 +37,8 @@ const INITIAL_QUEUE_ITEMS: QueueItem[] = [
     company: "Reaktor",
     submittedDate: "18.9.2026",
     hours: 800,
+    credits: 30,
+    creditsPutToOma: false,
     status: "needs_review",
   },
   {
@@ -43,6 +49,8 @@ const INITIAL_QUEUE_ITEMS: QueueItem[] = [
     company: "Futurice",
     submittedDate: "23.9.2026",
     hours: 400,
+    credits: 15,
+    creditsPutToOma: false,
     status: "needs_review",
   },
   {
@@ -53,6 +61,8 @@ const INITIAL_QUEUE_ITEMS: QueueItem[] = [
     company: "KONE Oyj",
     submittedDate: "6.10.2026",
     hours: 800,
+    credits: 30,
+    creditsPutToOma: true,
     status: "approved",
     feedback: "Approved by Mikko Laine: Learning reflection and hours verified.",
   },
@@ -62,17 +72,43 @@ export default function TeacherReviewQueuePage() {
   const [queue, setQueue] = useState<QueueItem[]>(INITIAL_QUEUE_ITEMS);
   const [selectedReport, setSelectedReport] = useState<QueueItem | null>(null);
   const [feedbackText, setFeedbackText] = useState("");
+  const [creditsPutToOma, setCreditsPutToOma] = useState(false);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
+
+  const handleOpenReview = (item: QueueItem) => {
+    setSelectedReport(item);
+    setCreditsPutToOma(item.creditsPutToOma ?? false);
+  };
 
   const handleApprove = (id: string, studentName: string) => {
     setQueue((prev) =>
       prev.map((item) =>
-        item.id === id ? { ...item, status: "approved" } : item
+        item.id === id ? { ...item, status: "approved", creditsPutToOma } : item
       )
     );
-    setActionNotice(`Report approved for ${studentName}.`);
+    setActionNotice(
+      `Report approved for ${studentName}.${creditsPutToOma ? " Credits marked put to OMA." : ""}`
+    );
     setTimeout(() => setActionNotice(null), 3000);
     setSelectedReport(null);
+  };
+
+  const toggleCreditsPutToOma = (id: string) => {
+    setQueue((prev) =>
+      prev.map((item) => {
+        if (item.id === id) {
+          const next = !item.creditsPutToOma;
+          setActionNotice(
+            next
+              ? `Credits marked put to OMA for ${item.student}.`
+              : `Credits unmarked from OMA for ${item.student}.`
+          );
+          setTimeout(() => setActionNotice(null), 3000);
+          return { ...item, creditsPutToOma: next };
+        }
+        return item;
+      })
+    );
   };
 
   const handleRequestChanges = (id: string, studentName: string) => {
@@ -154,10 +190,11 @@ export default function TeacherReviewQueuePage() {
               <tr>
                 <th className="w-1/4">Student</th>
                 <th className="w-1/4">Report Title</th>
-                <th className="w-1/5">Company</th>
-                <th className="w-24">Hours</th>
-                <th className="w-32">Status</th>
-                <th className="w-36 text-right">Actions</th>
+                <th className="w-1/6">Company</th>
+                <th className="w-20">Hours</th>
+                <th className="w-28">Status</th>
+                <th className="w-32">Credits in OMA</th>
+                <th className="w-28 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -187,10 +224,28 @@ export default function TeacherReviewQueuePage() {
                     {getStatusBadge(item.status)}
                   </td>
 
+                  <td>
+                    {item.status === "approved" ? (
+                      <label className="inline-flex items-center gap-1.5 text-xs cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(item.creditsPutToOma)}
+                          onChange={() => toggleCreditsPutToOma(item.id)}
+                          className="h-3.5 w-3.5 rounded text-brand cursor-pointer"
+                        />
+                        <span className={item.creditsPutToOma ? "text-success font-semibold" : "text-ink-muted"}>
+                          {item.creditsPutToOma ? "OMAssa ✓" : "Ei OMAssa"}
+                        </span>
+                      </label>
+                    ) : (
+                      <span className="text-xs text-ink-muted/50">—</span>
+                    )}
+                  </td>
+
                   <td className="text-right">
                     <button
                       type="button"
-                      onClick={() => setSelectedReport(item)}
+                      onClick={() => handleOpenReview(item)}
                       className="text-xs font-semibold text-brand hover:text-brand-hover hover:underline"
                     >
                       Review report →
@@ -236,6 +291,25 @@ export default function TeacherReviewQueuePage() {
                 className="input text-xs py-2"
               />
             </div>
+
+            {/* Manual OMA Checkbox */}
+            <label className="flex items-start gap-2.5 p-3 rounded-control bg-surface-muted border border-border cursor-pointer select-none">
+              <input
+                type="checkbox"
+                id="modal-oma-checkbox"
+                checked={creditsPutToOma}
+                onChange={(e) => setCreditsPutToOma(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded text-brand cursor-pointer"
+              />
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-ink">
+                  Credits put to OMA ({selectedReport.credits || (selectedReport.hours >= 800 ? 30 : 15)} op)
+                </span>
+                <span className="text-[11px] text-ink-muted">
+                  Check this once you have entered the credits into Metropolia OMA / Peppi.
+                </span>
+              </div>
+            </label>
 
             <div className="flex items-center justify-between gap-2 pt-3 border-t border-border">
               <button

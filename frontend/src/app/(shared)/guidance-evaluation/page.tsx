@@ -1,10 +1,12 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useReport } from "@/context/ReportContext";
 import { useInternship } from "@/context/InternshipContext";
+import { apiFetch } from "@/lib/api";
 import { registerDraftFlusher } from "@/lib/draft-registry";
 import LockedNoticeCard from "@/components/lockedNoticeCard";
 import StepStatusBanner from "@/components/stepStatusBanner";
@@ -23,7 +25,7 @@ import {
 /**
  * Checklist topics matching Finnish UAS internship guidance evaluation practice.
  */
-const ASIAT_TARKEMMIN_ITEMS: CheckboxItem[] = [
+export const ASIAT_TARKEMMIN_ITEMS: CheckboxItem[] = [
   {
     id: "perehdytys",
     label: "Perehdytys ja työyhteisön käytännöt",
@@ -122,7 +124,7 @@ export const OHJAUS_ARVIOINTI_SUBJECTS: StarEvaluationSubject[] = [
   ...OPPILAITOS_OHJAUS_SUBJECTS,
 ];
 
-const TEACHER_SAMPLE_RATINGS: Record<string, number> = {
+export const TEACHER_SAMPLE_RATINGS: Record<string, number> = {
   tyopaikkaohjaus: 4,
   tehtavat_vastaavuus: 5,
   tyoyhteiso: 5,
@@ -130,30 +132,36 @@ const TEACHER_SAMPLE_RATINGS: Record<string, number> = {
   kokonaisarvio: 5,
 };
 
-export default function GuidanceEvaluationPage() {
+function GuidanceEvaluationContent() {
   const { user } = useAuth();
   const { report, reports } = useReport();
-  const { isEvaluationLocked: isWorkflowLocked } = useInternship();
-  const isTeacher = user?.role === "teacher";
+  const {
+    activeInternship,
+    isEvaluationLocked,
+    refreshInternships,
+  } = useInternship();
+
+  const searchParams = useSearchParams();
+  const queryInternshipId = searchParams.get("internshipId") || searchParams.get("id");
+  const internshipId = queryInternshipId
+    ? parseInt(queryInternshipId, 10)
+    : activeInternship?.backendId || 1;
+
+  const isTeacher = user?.role === "teacher" || (user?.role as string) === "TEACHER";
   const leaveHref = isTeacher ? "/teacher-view" : "/";
   const leaveLabel = isTeacher ? "← Back to teacher view" : "← Back to overview";
 
   const isActualReportApproved =
-    reports.some((r) => r.status === "approved") || report?.status === "approved";
-  // Interactive test toggle: allows switching between "Lomake auki (ON)" and "Esikatselu (OFF)" during testing
-  const [testUnlockedOverride, setTestUnlockedOverride] = useState<boolean | null>(null);
+    Boolean(activeInternship?.isReportApproved) ||
+    reports.some((r) => r.status === "approved") ||
+    report?.status === "approved";
+  const isLocked = isTeacher ? false : isEvaluationLocked ?? !isActualReportApproved;
 
-  const isReportApproved =
-    testUnlockedOverride !== null ? testUnlockedOverride : isActualReportApproved;
-  const isLocked = isTeacher ? false : !isReportApproved;
-
-  // Local state for dynamic checklist items
+  // Local state for dynamic checklist items & star evaluations
   const [selectedCheckboxes, setSelectedCheckboxes] = useState<string[]>([
     "tavoitteet",
     "palaute",
   ]);
-
-  // Local state for dynamic star evaluations (subjectId -> rating)
   const [studentRatings, setStudentRatings] = useState<Record<string, number>>({
     tyopaikkaohjaus: 0,
     tehtavat_vastaavuus: 0,
@@ -162,50 +170,180 @@ export default function GuidanceEvaluationPage() {
     kokonaisarvio: 0,
   });
 
-  const starRatings = isTeacher ? TEACHER_SAMPLE_RATINGS : studentRatings;
+  const [evaluationStatus, setEvaluationStatus] = useState<"DRAFT" | "SUBMITTED">("DRAFT");
+  const [submittedAt, setSubmittedAt] = useState<string | null>(null);
 
-  const [savedFeedback, setSavedFeedback] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [notification, setNotification] = useState<{
+    type: "success" | "error" | "info";
+    text: string;
+  } | null>(null);
+
+  const showNotification = (type: "success" | "error" | "info", text: string) => {
+    setNotification({ type, text });
+    setTimeout(() => setNotification(null), 4500);
+  };
+
+  // Fetch guidance evaluation from backend on mount or when internshipId changes
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoading(true);
+    setLoadError(null);
+
+    apiFetch<{ evaluation: any }>(`/internships/${internshipId}/guidance-evaluation`)
+      .then((data) => {
+        if (!isMounted) return;
+        if (data?.evaluation) {
+          if (Array.isArray(data.evaluation.checklist)) {
+            setSelectedCheckboxes(data.evaluation.checklist);
+          }
+          if (data.evaluation.ratings && typeof data.evaluation.ratings === "object") {
+            setStudentRatings((prev) => ({
+              ...prev,
+              ...data.evaluation.ratings,
+            }));
+          }
+          const st = (data.evaluation.status || "DRAFT").toUpperCase();
+          setEvaluationStatus(st === "SUBMITTED" ? "SUBMITTED" : "DRAFT");
+          setSubmittedAt(data.evaluation.submittedAt || null);
+        } else {
+          // If teacher and no data yet, provide sample preview ratings so page is informative
+          if (isTeacher) {
+            setStudentRatings(TEACHER_SAMPLE_RATINGS);
+          }
+          setEvaluationStatus("DRAFT");
+          setSubmittedAt(null);
+        }
+      })
+      .catch((err) => {
+        if (!isMounted) return;
+        if (err?.status === 404) {
+          if (isTeacher) setStudentRatings(TEACHER_SAMPLE_RATINGS);
+          setEvaluationStatus("DRAFT");
+        } else {
+          setLoadError(err instanceof Error ? err.message : "Failed to load evaluation.");
+        }
+      })
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [internshipId, isTeacher]);
+
+  const isSubmitted = evaluationStatus === "SUBMITTED";
+  const isEffectivelyReadOnly = isTeacher || isLocked || isSubmitted;
 
   const handleRatingChange = (subjectId: string, rating: number) => {
-    if (isTeacher || isLocked) return;
+    if (isEffectivelyReadOnly) return;
     setStudentRatings((prev) => ({
       ...prev,
       [subjectId]: rating,
     }));
   };
 
-  const handleSaveDraft = () => {
-    if (isLocked) return;
-    setSavedFeedback("Arviointiluonnos tallennettu onnistuneesti!");
-    setTimeout(() => setSavedFeedback(null), 4000);
+  const handleSaveDraft = async () => {
+    if (isEffectivelyReadOnly || isSaving || isSubmitting) return;
+
+    setIsSaving(true);
+    try {
+      await apiFetch(`/internships/${internshipId}/guidance-evaluation`, {
+        method: "POST",
+        body: JSON.stringify({
+          checklist: selectedCheckboxes,
+          ratings: studentRatings,
+          status: "DRAFT",
+        }),
+      });
+      showNotification("success", "Arviointiluonnos tallennettu onnistuneesti!");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Luonnoksen tallennus epäonnistui.";
+      showNotification("error", msg);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Register flusher for pre-logout draft sync / persistence
   useEffect(() => {
-    if (isLocked || isTeacher) return;
+    if (isEffectivelyReadOnly) return;
     return registerDraftFlusher(async (): Promise<boolean> => {
-      // Future backend sync: POST /internships/:id/guidance-evaluation { ratings: studentRatings, topics: selectedCheckboxes, status: 'DRAFT' }
-      return true;
+      try {
+        await apiFetch(`/internships/${internshipId}/guidance-evaluation`, {
+          method: "POST",
+          body: JSON.stringify({
+            checklist: selectedCheckboxes,
+            ratings: studentRatings,
+            status: "DRAFT",
+          }),
+        });
+        return true;
+      } catch {
+        return false;
+      }
     });
-  }, [isLocked, isTeacher, studentRatings, selectedCheckboxes]);
+  }, [isEffectivelyReadOnly, internshipId, selectedCheckboxes, studentRatings]);
 
   // Checklist completion states
   const isWorkplaceComplete = useMemo(
-    () => isEvaluationGroupComplete(TYOPAIKKA_OHJAUS_SUBJECTS, starRatings),
-    [starRatings]
+    () => isEvaluationGroupComplete(TYOPAIKKA_OHJAUS_SUBJECTS, studentRatings),
+    [studentRatings]
   );
   const isInstitutionComplete = useMemo(
-    () => isEvaluationGroupComplete(OPPILAITOS_OHJAUS_SUBJECTS, starRatings),
-    [starRatings]
+    () => isEvaluationGroupComplete(OPPILAITOS_OHJAUS_SUBJECTS, studentRatings),
+    [studentRatings]
   );
   const isChecklistFilled = selectedCheckboxes.length > 0;
 
   const workplaceRatedCount = TYOPAIKKA_OHJAUS_SUBJECTS.filter(
-    (s) => (starRatings[s.id] ?? 0) > 0
+    (s) => (studentRatings[s.id] ?? 0) > 0
   ).length;
   const institutionRatedCount = OPPILAITOS_OHJAUS_SUBJECTS.filter(
-    (s) => (starRatings[s.id] ?? 0) > 0
+    (s) => (studentRatings[s.id] ?? 0) > 0
   ).length;
+
+  const handleSubmit = async () => {
+    if (isEffectivelyReadOnly || isSaving || isSubmitting) return;
+
+    if (!isWorkplaceComplete || !isInstitutionComplete) {
+      showNotification("error", "Arvioi kaikki 5 kohtaa tähdillä ennen lähettämistä.");
+      return;
+    }
+
+    if (!isChecklistFilled) {
+      showNotification("error", "Valitse vähintään yksi kehityskohde ennen lähettämistä.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = await apiFetch<{ evaluation: any }>(
+        `/internships/${internshipId}/guidance-evaluation`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            checklist: selectedCheckboxes,
+            ratings: studentRatings,
+            status: "SUBMITTED",
+          }),
+        }
+      );
+      setEvaluationStatus("SUBMITTED");
+      setSubmittedAt(res.evaluation?.submittedAt || new Date().toISOString());
+      showNotification("success", "Ohjauksen arviointi lähetetty onnistuneesti!");
+      await refreshInternships();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Arvioinnin lähetys epäonnistui.";
+      showNotification("error", msg);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-6 pb-12">
@@ -217,6 +355,8 @@ export default function GuidanceEvaluationPage() {
         statusBadge={
           isTeacher ? (
             <span className="pill-info text-sm px-3 py-1">Teacher view</span>
+          ) : isSubmitted ? (
+            <span className="pill-success text-sm px-3 py-1">Submitted</span>
           ) : isLocked ? (
             <span className="pill-neutral text-sm px-3 py-1">
               Step 6 of 6 · Guidance evaluation
@@ -241,6 +381,17 @@ export default function GuidanceEvaluationPage() {
           currentStepHref="/report"
           currentStepLabel="Siirry nykyiseen vaiheeseen: Raportti"
         />
+      ) : isSubmitted ? (
+        <StepStatusBanner
+          step="evaluation"
+          variant="feedback"
+          title="Harjoittelun ohjauksen arviointi lähetetty"
+          description={`Kiitos palautteestasi! Arviointi on tallennettu ja vahvistettu${
+            submittedAt ? ` (${new Date(submittedAt).toLocaleDateString("fi-FI")})` : ""
+          }.`}
+          badge="Submitted"
+          showDot={true}
+        />
       ) : (
         <StepStatusBanner
           step="evaluation"
@@ -260,10 +411,25 @@ export default function GuidanceEvaluationPage() {
         />
       )}
 
-      {/* Feedback message banner if present */}
-      {savedFeedback && (
-        <div className="rounded-control bg-success-soft border border-success/20 px-4 py-3 text-sm text-success transition-all">
-          ✓ {savedFeedback}
+      {/* Load error banner if any */}
+      {loadError && (
+        <div className="rounded-control bg-danger-soft border border-danger/20 p-4 text-sm text-danger flex items-center justify-between">
+          <p>{loadError}</p>
+        </div>
+      )}
+
+      {/* Feedback notification toast if present */}
+      {notification && (
+        <div
+          className={`rounded-control px-4 py-3 text-sm transition-all border ${
+            notification.type === "success"
+              ? "bg-success-soft text-success border-success/20"
+              : notification.type === "error"
+              ? "bg-danger-soft text-danger border-danger/20"
+              : "bg-surface-muted text-ink border-border"
+          }`}
+        >
+          {notification.text}
         </div>
       )}
 
@@ -279,7 +445,7 @@ export default function GuidanceEvaluationPage() {
               items={ASIAT_TARKEMMIN_ITEMS}
               selectedIds={selectedCheckboxes}
               onChange={setSelectedCheckboxes}
-              readOnly={isTeacher || isLocked}
+              readOnly={isEffectivelyReadOnly}
               columns={2}
               idPrefix="guidance-checklist"
               variant="plain"
@@ -294,9 +460,9 @@ export default function GuidanceEvaluationPage() {
               subject="Arvioi työpaikalla saamasi perehdytyksen, ohjauksen ja työyhteisön ilmapiirin toteutumista asteikolla 1–5 tähteä:"
               maxStars={5}
               items={TYOPAIKKA_OHJAUS_SUBJECTS}
-              values={starRatings}
+              values={studentRatings}
               onChange={handleRatingChange}
-              readOnly={isTeacher || isLocked}
+              readOnly={isEffectivelyReadOnly}
               collapsibleOnComplete={true}
               defaultExpanded={true}
               scaleLegend={{
@@ -320,9 +486,9 @@ export default function GuidanceEvaluationPage() {
               subject="Arvioi oppilaitoksen tarjoamaa ohjausta ja koko harjoittelujakson antia ammatilliselle kehittymisellesi:"
               maxStars={5}
               items={OPPILAITOS_OHJAUS_SUBJECTS}
-              values={starRatings}
+              values={studentRatings}
               onChange={handleRatingChange}
-              readOnly={isTeacher || isLocked}
+              readOnly={isEffectivelyReadOnly}
               collapsibleOnComplete={true}
               defaultExpanded={true}
               scaleLegend={{
@@ -345,26 +511,29 @@ export default function GuidanceEvaluationPage() {
 
               {!isTeacher && (
                 <div className="flex flex-wrap items-center gap-3">
-                  {!isLocked ? (
+                  {!isLocked && !isSubmitted ? (
                     <>
                       <button
                         type="button"
                         onClick={handleSaveDraft}
+                        disabled={isSaving || isSubmitting}
                         className="btn-secondary"
                       >
-                        Tallenna luonnos
+                        {isSaving ? "Tallennetaan..." : "Tallenna luonnos"}
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          setSavedFeedback("Ohjauksen arviointi lähetetty onnistuneesti!");
-                          setTimeout(() => setSavedFeedback(null), 4500);
-                        }}
+                        onClick={handleSubmit}
+                        disabled={isSaving || isSubmitting}
                         className="btn-primary"
                       >
-                        Vahvista ja lähetä arviointi
+                        {isSubmitting ? "Lähetetään..." : "Vahvista ja lähetä arviointi"}
                       </button>
                     </>
+                  ) : isSubmitted ? (
+                    <span className="pill-success text-xs font-semibold py-1.5 px-3">
+                      ✓ Arviointi lähetetty
+                    </span>
                   ) : (
                     <span className="text-xs text-ink-muted">
                       Lomake on lukittu · Aukeaa raportin hyväksynnän jälkeen
@@ -378,7 +547,7 @@ export default function GuidanceEvaluationPage() {
 
         {/* Right Column: Submission Checklist */}
         <SubmissionChecklist
-          title={isTeacher ? "Arvioinnin tila" : "Ennen lähetystä"}
+          title={isTeacher ? "Arvioinnin tila" : isSubmitted ? "Arviointi palautettu" : "Ennen lähetystä"}
           sticky={true}
           items={[
             {
@@ -425,5 +594,19 @@ export default function GuidanceEvaluationPage() {
         />
       </div>
     </div>
+  );
+}
+
+export default function GuidanceEvaluationPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-8 text-center text-ink-muted">
+          Ladataan arviointia...
+        </div>
+      }
+    >
+      <GuidanceEvaluationContent />
+    </Suspense>
   );
 }

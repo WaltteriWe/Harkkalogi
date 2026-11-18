@@ -8,6 +8,9 @@ router.use(authenticateToken);
 
 router.get("/", (req, res, next) => internshipsController.list(req, res, next));
 router.get("/:id", (req, res, next) => internshipsController.getById(req, res, next));
+router.patch("/:id/credits", (req, res, next) =>
+  internshipsController.updateCredits(req, res, next)
+);
 router.get("/:id/guidance-evaluation", (req, res, next) =>
   internshipsController.getGuidanceEvaluation(req, res, next)
 );

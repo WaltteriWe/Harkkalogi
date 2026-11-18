@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../generated/prisma/client.ts";
-import { Role, StudyType, InternshipStatus, ReportStatus, ReviewDecision, PlanStatus } from "../generated/prisma/enums.ts";
+import { Role, StudyType, InternshipStatus, InternshipStage, ReportStatus, ReviewDecision, PlanStatus } from "../generated/prisma/enums.ts";
 import { hashPassword } from "../src/lib/password.ts";
 
 const connectionString = process.env.DATABASE_URL;
@@ -503,11 +503,15 @@ async function main() {
         order: 1,
         credits: 15,
         requiredHours: 400,
+        loggedHours: 400,
+        stage: InternshipStage.COMPLETED,
         company: "Reaktor",
         description: "Harjoittelu 1 (15 op) - Frontend- ja mobiilisovelluskehitys.",
         startDate: new Date("2025-05-05T08:00:00Z"),
         endDate: new Date("2025-08-29T16:00:00Z"),
         status: InternshipStatus.COMPLETED,
+        creditsPutToOma: true,
+        creditsPutToOmaAt: new Date("2025-08-30T10:00:00Z"),
         studentId: eetu.id,
         teacherId: mikko.id,
       },
@@ -582,6 +586,26 @@ async function main() {
       },
     });
 
+    // Guidance evaluation for H1 (Submitted & Completed)
+    await prisma.guidanceEvaluation.create({
+      data: {
+        internshipId: eetuH1.id,
+        studentId: eetu.id,
+        status: "SUBMITTED",
+        checklist: ["tavoitteet", "palaute", "tehtavat", "ohjaus"],
+        ratings: {
+          tyopaikkaohjaus: 5,
+          tehtavat_vastaavuus: 5,
+          tyoyhteiso: 5,
+          oppilaitos_ohjaus: 4,
+          kokonaisarvio: 5,
+        },
+        feedback:
+          "Harjoittelu Reaktorilla oli erittäin opettavainen ja ohjaus oli esimerkillistä. Tiimi tuki oppimista ja antoi säännöllistä palautetta.",
+        submittedAt: new Date("2025-08-31T10:00:00Z"),
+      },
+    });
+
     // 2. Harjoittelu 2 (Ongoing, time passed: May-Oct 2026, 400 h, Futurice)
     const eetuH2 = await prisma.internship.create({
       data: {
@@ -589,11 +613,15 @@ async function main() {
         order: 2,
         credits: 15,
         requiredHours: 400,
+        loggedHours: 400,
+        stage: InternshipStage.REPORT_READY,
         company: "Futurice",
         description: "Harjoittelu 2 (15 op) - Full stack -pilvipalvelut ja mikropalveluarkkitehtuuri.",
         startDate: new Date("2026-05-04T08:00:00Z"),
         endDate: new Date("2026-10-16T16:00:00Z"),
         status: InternshipStatus.ONGOING,
+        creditsPutToOma: false,
+        creditsPutToOmaAt: null,
         studentId: eetu.id,
         teacherId: mikko.id,
       },

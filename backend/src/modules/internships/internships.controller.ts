@@ -32,6 +32,17 @@ export class InternshipsController {
     }
   }
 
+  async updateCredits(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = parseInt(String(req.params.id), 10);
+      const creditsPutToOma = Boolean(req.body.creditsPutToOma);
+      const updated = await internshipsService.setCreditsPutToOma(id, creditsPutToOma);
+      res.status(200).json({ internship: updated });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getGuidanceEvaluation(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const internshipId = parseInt(String(req.params.id), 10);

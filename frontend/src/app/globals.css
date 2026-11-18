@@ -200,6 +200,7 @@
 
   /* Status pills */
   .pill,
+  .pill-brand,
   .pill-info,
   .pill-danger,
   .pill-warning,
@@ -208,6 +209,9 @@
     @apply inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap;
   }
 
+  .pill-brand {
+    @apply bg-brand-soft text-brand-ink;
+  }
   .pill-info {
     @apply bg-info-soft text-info;
   } /* Needs review, Teacher */

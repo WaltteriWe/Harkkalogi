@@ -7,6 +7,7 @@ export type StudyMode = "päivätoteutus" | "monimuoto";
 
 export interface SupervisedStudent {
   id: string;
+  internshipId?: number;
   name: string;
   email: string;
   studyMode: StudyMode;
@@ -16,12 +17,14 @@ export interface SupervisedStudent {
   hoursLogged: number;
   hoursRequired: number;
   reportStatus: "needs_review" | "in_progress" | "approved";
+  creditsPutToOma?: boolean;
   lastActive: string;
 }
 
 const SUPERVISED_STUDENTS: SupervisedStudent[] = [
   {
     id: "stu-1",
+    internshipId: 1,
     name: "Aino Korhonen",
     email: "aino.korhonen@example.fi",
     studyMode: "päivätoteutus",
@@ -35,6 +38,7 @@ const SUPERVISED_STUDENTS: SupervisedStudent[] = [
   },
   {
     id: "stu-2",
+    internshipId: 2,
     name: "Eetu Mäkinen",
     email: "eetu.makinen@example.fi",
     studyMode: "päivätoteutus",
@@ -48,6 +52,7 @@ const SUPERVISED_STUDENTS: SupervisedStudent[] = [
   },
   {
     id: "stu-3",
+    internshipId: 3,
     name: "Linnea Berg",
     email: "linnea.berg@example.fi",
     studyMode: "monimuoto",
@@ -61,6 +66,7 @@ const SUPERVISED_STUDENTS: SupervisedStudent[] = [
   },
   {
     id: "stu-4",
+    internshipId: 4,
     name: "Oskari Nurmi",
     email: "oskari.nurmi@example.fi",
     studyMode: "monimuoto",
@@ -83,6 +89,7 @@ const SUPERVISED_STUDENTS: SupervisedStudent[] = [
     hoursLogged: 800,
     hoursRequired: 800,
     reportStatus: "approved",
+    creditsPutToOma: true,
     lastActive: "3 days ago",
   },
   {
@@ -96,14 +103,21 @@ const SUPERVISED_STUDENTS: SupervisedStudent[] = [
     hoursLogged: 240,
     hoursRequired: 800,
     reportStatus: "in_progress",
+    creditsPutToOma: false,
     lastActive: "5 days ago",
   },
 ];
 
 export default function MyStudentsPage() {
-  const [students] = useState<SupervisedStudent[]>(SUPERVISED_STUDENTS);
+  const [students, setStudents] = useState<SupervisedStudent[]>(SUPERVISED_STUDENTS);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterMode, setFilterMode] = useState<"all" | StudyMode | "needs_review">("all");
+
+  const toggleStudentCreditsPutToOma = (id: string) => {
+    setStudents((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, creditsPutToOma: !s.creditsPutToOma } : s))
+    );
+  };
 
   const filteredStudents = useMemo(() => {
     return students.filter((s) => {
@@ -238,14 +252,15 @@ export default function MyStudentsPage() {
                 <th className="w-1/4">Student</th>
                 <th className="w-1/4">Company &amp; Role</th>
                 <th className="w-1/6">Hours Logged</th>
-                <th className="w-1/6">Status</th>
+                <th className="w-28">Status</th>
+                <th className="w-32">Credits in OMA</th>
                 <th className="w-24 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-sm text-ink-muted">
+                  <td colSpan={6} className="py-8 text-center text-sm text-ink-muted">
                     No students matching the current filter.
                   </td>
                 </tr>
@@ -310,6 +325,31 @@ export default function MyStudentsPage() {
                         {getStatusBadge(student.reportStatus)}
                       </td>
 
+                      {/* OMA Credit Checkbox */}
+                      <td>
+                        {student.reportStatus === "approved" ? (
+                          <label className="inline-flex items-center gap-1.5 text-xs cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(student.creditsPutToOma)}
+                              onChange={() => toggleStudentCreditsPutToOma(student.id)}
+                              className="h-3.5 w-3.5 rounded text-brand cursor-pointer"
+                            />
+                            <span
+                              className={
+                                student.creditsPutToOma
+                                  ? "text-success font-semibold"
+                                  : "text-ink-muted"
+                              }
+                            >
+                              {student.creditsPutToOma ? "OMAssa ✓" : "Ei OMAssa"}
+                            </span>
+                          </label>
+                        ) : (
+                          <span className="text-xs text-ink-muted/50">—</span>
+                        )}
+                      </td>
+
                       {/* Actions */}
                       <td className="text-right">
                         <div className="flex items-center justify-end gap-3 text-xs font-semibold">
@@ -320,7 +360,11 @@ export default function MyStudentsPage() {
                             Review
                           </Link>
                           <Link
-                            href="/guidance-evaluation"
+                            href={
+                              student.internshipId
+                                ? `/guidance-evaluation?internshipId=${student.internshipId}`
+                                : "/guidance-evaluation"
+                            }
                             className="text-ink-muted hover:text-ink hover:underline"
                             title="View guidance evaluation"
                           >

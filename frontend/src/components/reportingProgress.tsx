@@ -19,6 +19,7 @@ export default function ReportingProgress() {
     isPlanSubmitted,
     isReportApproved,
     isReportSubmitted,
+    isEvaluationSubmitted,
   } = useInternship();
 
   const dynamicSteps = useMemo<Step[]>(() => {
@@ -77,6 +78,7 @@ export default function ReportingProgress() {
         : "Due at end of internship";
 
     // 5. Teacher approval & credits
+    const creditsPutToOma = Boolean(activeInternship.creditsPutToOma);
     const step5Status: StepStatus = !isReportSubmitted
       ? "upcoming"
       : isReportApproved
@@ -85,16 +87,27 @@ export default function ReportingProgress() {
     const step5Detail = !isReportSubmitted
       ? "After report submission"
       : isReportApproved
-        ? activeReport.approvedAt
-          ? `Approved ${formatDate(activeReport.approvedAt) || activeReport.approvedAt}`
-          : "Approved · Credits to OMA"
+        ? creditsPutToOma
+          ? "Approved · Credits in OMA"
+          : "Approved · Awaiting OMA entry"
         : "Under teacher review";
 
     // 6. Guidance evaluation
-    const step6Status: StepStatus = !isReportApproved ? "upcoming" : "current";
+    const isEvaluationDone = Boolean(
+      activeInternship.isEvaluationSubmitted ||
+      isEvaluationSubmitted ||
+      (activeInternship.status === "completed" && isReportApproved)
+    );
+    const step6Status: StepStatus = !isReportApproved
+      ? "upcoming"
+      : isEvaluationDone
+        ? "done"
+        : "current";
     const step6Detail = !isReportApproved
       ? "Unlocks after approval"
-      : "Ready to fill";
+      : isEvaluationDone
+        ? "Completed"
+        : "Ready to fill";
 
     return [
       {
@@ -146,6 +159,7 @@ export default function ReportingProgress() {
     isReportSubmitted,
     isReportApproved,
     activeInternship,
+    isEvaluationSubmitted,
     plan,
     report,
     targetHours,
@@ -195,14 +209,38 @@ export default function ReportingProgress() {
         actionHref: "/report",
       };
     }
+    const isEvaluationDone = Boolean(
+      activeInternship.isEvaluationSubmitted ||
+      isEvaluationSubmitted ||
+      (activeInternship.status === "completed" && isReportApproved)
+    );
+    if (!isEvaluationDone) {
+      return {
+        title: "Step 6: Harjoittelun ohjauksen arviointi",
+        description:
+          "Harjoitteluraporttisi on hyväksytty! Täytä vielä harjoittelun ohjauksen arviointi suoritusprosessin viimeistelemiseksi.",
+        actionLabel: "Avaa ohjauksen arviointi →",
+        actionHref: "/guidance-evaluation",
+      };
+    }
     return {
-      title: "Step 6: Harjoittelun ohjauksen arviointi",
-      description:
-        "Harjoitteluraporttisi on hyväksytty! Täytä vielä harjoittelun ohjauksen arviointi suoritusprosessin viimeistelemiseksi.",
-      actionLabel: "Avaa ohjauksen arviointi →",
-      actionHref: "/guidance-evaluation",
+      title: "Harjoittelu suoritettu",
+      description: activeInternship.creditsPutToOma
+        ? "Kaikki harjoittelun vaiheet on suoritettu ja opintopisteet kirjattu OMAan."
+        : "Kaikki harjoittelun vaiheet on suoritettu. Opintopisteiden kirjaus OMAan odottaa opettajan kuittausta.",
+      actionLabel: "Tarkastele suoritusta →",
+      actionHref: "/report",
     };
-  }, [isPlanSubmitted, isPlanApproved, isReportSubmitted, isReportApproved, loggedHours, targetHours]);
+  }, [
+    isPlanSubmitted,
+    isPlanApproved,
+    isReportSubmitted,
+    isReportApproved,
+    isEvaluationSubmitted,
+    activeInternship,
+    loggedHours,
+    targetHours,
+  ]);
 
   return (
     <section className="card flex flex-col justify-between gap-5 h-full">

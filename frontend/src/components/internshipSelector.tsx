@@ -82,6 +82,26 @@ export default function InternshipSelector() {
             );
           }
 
+          const isOngoing = internship.status === "ongoing";
+
+          let statusBadge = "Ei aloitettu";
+          let statusClass = "pill-neutral text-[11px] py-0.5 px-1.5";
+
+          if (isDone) {
+            statusBadge = "Valmis ✓";
+            statusClass = "pill-success text-[11px] py-0.5 px-1.5";
+          } else if (isOngoing) {
+            statusBadge = isActive ? "Aktiivinen" : "Käynnissä";
+            statusClass = isActive
+              ? "pill-brand text-[11px] py-0.5 px-1.5"
+              : "pill-info text-[11px] py-0.5 px-1.5";
+          } else {
+            statusBadge = isActive ? "Aktiivinen" : "Ei aloitettu";
+            statusClass = isActive
+              ? "pill-brand text-[11px] py-0.5 px-1.5"
+              : "pill-neutral text-[11px] py-0.5 px-1.5";
+          }
+
           return (
             <button
               key={internship.id}
@@ -103,20 +123,13 @@ export default function InternshipSelector() {
                 >
                   {internship.title}
                 </span>
-                <span
-                  className={
-                    isDone
-                      ? "pill-success text-[11px] py-0.5 px-1.5"
-                      : isActive
-                      ? "pill-brand text-[11px] py-0.5 px-1.5"
-                      : "pill-neutral text-[11px] py-0.5 px-1.5"
-                  }
-                >
-                  {isDone ? "Valmis ✓" : isActive ? "Aktiivinen" : "Ei aloitettu"}
+                <span className={statusClass}>
+                  {statusBadge}
                 </span>
               </div>
               <p className="meta mt-1 text-xs text-ink-muted line-clamp-1">
                 {internship.company || "Työpaikka ei määritelty"} · {internship.credits} op ({internship.targetHours} h)
+                {isOngoing && internship.currentStepNumber ? ` · Vaihe ${internship.currentStepNumber}/6` : ""}
               </p>
             </button>
           );

@@ -27,6 +27,16 @@ enum InternshipStatus {
   COMPLETED
 }
 
+enum InternshipStage {
+  PLAN_DRAFT
+  PLAN_SUBMITTED
+  IN_PROGRESS
+  REPORT_READY
+  REPORT_SUBMITTED
+  EVALUATION_PENDING
+  COMPLETED
+}
+
 enum ReportStatus {
   DRAFT
   SUBMITTED
@@ -68,16 +78,22 @@ model User {
 }
 
 model Internship {
-  id            Int              @id @default(autoincrement())
-  title         String           @default("Harjoittelu 1")
-  order         Int              @default(1)
-  credits       Int              @default(15)
-  requiredHours Int              @default(400)
-  company       String
-  description   String?
-  startDate     DateTime
-  endDate       DateTime?
-  status        InternshipStatus @default(ONGOING)
+  id                Int              @id @default(autoincrement())
+  title             String           @default("Harjoittelu 1")
+  order             Int              @default(1)
+  credits           Int              @default(15)
+  requiredHours     Int              @default(400)
+  loggedHours       Int              @default(0)
+  stage             InternshipStage  @default(PLAN_DRAFT)
+  status            InternshipStatus @default(ONGOING)
+  company           String
+  description       String?
+  startDate         DateTime
+  endDate           DateTime?
+
+  // Teacher manual OMA credit confirmation
+  creditsPutToOma   Boolean          @default(false)
+  creditsPutToOmaAt DateTime?
 
   studentId Int
   student   User @relation("StudentInternships", fields: [studentId], references: [id])
@@ -92,12 +108,16 @@ model Internship {
 
   @@index([studentId])
   @@index([teacherId])
+  @@index([stage])
+  @@index([status])
+  @@index([creditsPutToOma])
 }
 
 model Report {
   id          Int          @id @default(autoincrement())
   title       String
   content     String
+  totalHours  Int          @default(400)
   status      ReportStatus @default(DRAFT)
   submittedAt DateTime?
   createdAt   DateTime     @default(now())

@@ -40,6 +40,7 @@ export interface InternshipReportInfo {
 
 export interface InternshipItem {
   id: string;
+  backendId?: number;
   order: number;
   title: string;
   scope: "h1" | "h2" | "combined";
@@ -61,7 +62,10 @@ export interface InternshipItem {
   isPlanSubmitted?: boolean;
   isReportApproved?: boolean;
   isReportSubmitted?: boolean;
+  isEvaluationSubmitted?: boolean;
   isEvaluationLocked?: boolean;
+  creditsPutToOma?: boolean;
+  creditsPutToOmaAt?: string | null;
   currentStepNumber?: number;
   contacts?: InternshipContact[];
 }
@@ -78,16 +82,21 @@ export interface InternshipContextType {
   isPlanSubmitted: boolean;
   isReportApproved: boolean;
   isReportSubmitted: boolean;
+  isEvaluationSubmitted: boolean;
   isEvaluationLocked: boolean;
+  creditsPutToOma: boolean;
+  setCreditsPutToOma: (internshipId: number, value: boolean) => Promise<void>;
   currentStepNumber: number;
   scope: "h1" | "h2" | "combined";
   setScope: (scope: "h1" | "h2" | "combined") => void;
   contacts: InternshipContact[];
+  refreshInternships: () => Promise<void>;
 }
 
 const DEFAULT_INTERNSHIPS: InternshipItem[] = [
   {
     id: "internship-1",
+    backendId: 1,
     order: 1,
     title: "Harjoittelu 1",
     scope: "h1",
@@ -99,6 +108,7 @@ const DEFAULT_INTERNSHIPS: InternshipItem[] = [
   },
   {
     id: "internship-2",
+    backendId: 2,
     order: 2,
     title: "Harjoittelu 2",
     scope: "h2",
@@ -174,6 +184,9 @@ export function InternshipProvider({ children }: { children: ReactNode }) {
         const isPlanSubmitted = wf.isPlanSubmitted ?? (isPlanApproved || (bi.plan?.status || "").toUpperCase() === "SUBMITTED");
         const isReportApproved = isPlanApproved && hasApprovedReport;
         const isReportSubmitted = isPlanApproved && hasSubmittedReport;
+        const isEvaluationSubmitted =
+          wf.isEvaluationSubmitted ??
+          ((bi.guidanceEvaluation?.status || "").toUpperCase() === "SUBMITTED" && isReportApproved);
         const targetHours = wf.targetHours || bi.requiredHours || (scope === "combined" ? 800 : 400);
         const loggedHours = wf.loggedHours !== undefined ? wf.loggedHours : (isReportApproved ? targetHours : isPlanApproved ? Math.round(targetHours * 0.8) : 0);
         const status: "ongoing" | "completed" | "not_started" =
@@ -185,6 +198,7 @@ export function InternshipProvider({ children }: { children: ReactNode }) {
 
         return {
           id: `internship-${bi.order || bi.id}`,
+          backendId: typeof bi.id === "number" ? bi.id : undefined,
           order: bi.order || 1,
           title: bi.title || (scope === "h2" ? "Harjoittelu 2" : scope === "combined" ? "Koko harjoittelu" : "Harjoittelu 1"),
           scope,
@@ -204,7 +218,10 @@ export function InternshipProvider({ children }: { children: ReactNode }) {
           isPlanSubmitted,
           isReportApproved,
           isReportSubmitted,
+          isEvaluationSubmitted,
           isEvaluationLocked: wf.isEvaluationLocked ?? !isReportApproved,
+          creditsPutToOma: Boolean(bi.creditsPutToOma ?? wf.creditsPutToOma),
+          creditsPutToOmaAt: bi.creditsPutToOmaAt ?? wf.creditsPutToOmaAt ?? null,
           currentStepNumber: wf.currentStepNumber,
           plan: bi.plan
             ? {
@@ -257,7 +274,10 @@ export function InternshipProvider({ children }: { children: ReactNode }) {
           isPlanSubmitted: true,
           isReportApproved: true,
           isReportSubmitted: true,
+          isEvaluationSubmitted: true,
           isEvaluationLocked: false,
+          creditsPutToOma: true,
+          creditsPutToOmaAt: "2025-08-30T10:00:00.000Z",
           currentStepNumber: 6,
           plan: {
             status: "approved",
@@ -295,7 +315,10 @@ export function InternshipProvider({ children }: { children: ReactNode }) {
           isPlanSubmitted: true,
           isReportApproved: false,
           isReportSubmitted: false,
+          isEvaluationSubmitted: false,
           isEvaluationLocked: true,
+          creditsPutToOma: false,
+          creditsPutToOmaAt: null,
           currentStepNumber: 4,
           plan: {
             status: "approved",
@@ -350,6 +373,7 @@ export function InternshipProvider({ children }: { children: ReactNode }) {
           isPlanSubmitted,
           isReportApproved,
           isReportSubmitted,
+          isEvaluationSubmitted: false,
           isEvaluationLocked: !isReportApproved,
           plan: {
             status: plan.status,
@@ -391,6 +415,7 @@ export function InternshipProvider({ children }: { children: ReactNode }) {
         isPlanSubmitted,
         isReportApproved,
         isReportSubmitted,
+        isEvaluationSubmitted: false,
         isEvaluationLocked: !isReportApproved,
         plan: {
           status: plan.status,
@@ -426,6 +451,7 @@ export function InternshipProvider({ children }: { children: ReactNode }) {
         isPlanSubmitted: false,
         isReportApproved: false,
         isReportSubmitted: false,
+        isEvaluationSubmitted: false,
         isEvaluationLocked: true,
       },
     ];
@@ -453,6 +479,7 @@ export function InternshipProvider({ children }: { children: ReactNode }) {
   const isPlanSubmitted = Boolean(activeInternship.isPlanSubmitted || isPlanApproved);
   const isReportApproved = Boolean(activeInternship.isReportApproved);
   const isReportSubmitted = Boolean(activeInternship.isReportSubmitted || isReportApproved);
+  const isEvaluationSubmitted = Boolean(activeInternship.isEvaluationSubmitted);
   const isEvaluationLocked = Boolean(activeInternship.isEvaluationLocked ?? !isReportApproved);
 
   const loggedHours = useMemo(() => {
@@ -500,6 +527,33 @@ export function InternshipProvider({ children }: { children: ReactNode }) {
     [setPlanScope]
   );
 
+  const refreshInternships = useCallback(async () => {
+    if (!isAuthenticated) return;
+    try {
+      const data = await apiFetch<{ internships: any[] }>("/internships");
+      if (Array.isArray(data?.internships) && data.internships.length > 0) {
+        setBackendInternships(data.internships);
+      }
+    } catch {
+      // Ignore offline/error
+    }
+  }, [isAuthenticated]);
+
+  const setCreditsPutToOma = useCallback(
+    async (internshipId: number, value: boolean) => {
+      try {
+        await apiFetch(`/internships/${internshipId}/credits`, {
+          method: "PATCH",
+          body: JSON.stringify({ creditsPutToOma: value }),
+        });
+        await refreshInternships();
+      } catch {
+        // Ignore offline/error
+      }
+    },
+    [refreshInternships]
+  );
+
   const value = useMemo(
     () => ({
       internships,
@@ -513,11 +567,15 @@ export function InternshipProvider({ children }: { children: ReactNode }) {
       isPlanSubmitted,
       isReportApproved,
       isReportSubmitted,
+      isEvaluationSubmitted,
       isEvaluationLocked,
+      creditsPutToOma: Boolean(activeInternship.creditsPutToOma),
+      setCreditsPutToOma,
       currentStepNumber,
       scope: activeInternship.scope || currentScope,
       setScope,
       contacts,
+      refreshInternships,
     }),
     [
       internships,
@@ -530,11 +588,14 @@ export function InternshipProvider({ children }: { children: ReactNode }) {
       isPlanSubmitted,
       isReportApproved,
       isReportSubmitted,
+      isEvaluationSubmitted,
       isEvaluationLocked,
+      setCreditsPutToOma,
       currentStepNumber,
       currentScope,
       setScope,
       contacts,
+      refreshInternships,
     ]
   );
 

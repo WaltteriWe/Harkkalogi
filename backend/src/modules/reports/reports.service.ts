@@ -3,6 +3,7 @@ import { ReportStatus } from "../../../generated/prisma/enums.ts";
 import { AppError } from "../../middlewares/error.middleware.ts";
 import type { CreateReportInput, UpdateReportInput } from "./reports.schemas.ts";
 import type { AuthUser } from "../../types/index.ts";
+import { syncWorkflowState } from "../internships/internship-workflow.service.ts";
 
 export function formatReport(report: any) {
   if (!report) return null;
@@ -31,7 +32,12 @@ export function formatReport(report: any) {
     (report.internship?.endDate
       ? report.internship.endDate.toISOString().split("T")[0]
       : "");
-  const totalHours = metadata.totalHours !== undefined ? metadata.totalHours : 800;
+  const totalHours =
+    typeof report.totalHours === "number"
+      ? report.totalHours
+      : metadata.totalHours !== undefined
+      ? metadata.totalHours
+      : 800;
   const attachments = Array.isArray(metadata.attachments) ? metadata.attachments : [];
   const supervisorFeedbackRequested = Boolean(metadata.supervisorFeedbackRequested);
   let tasksAndLearning = isJson
@@ -170,6 +176,7 @@ export class ReportsService {
       data: {
         title: input.title,
         content: JSON.stringify(metadata),
+        totalHours: typeof input.totalHours === "number" ? input.totalHours : 400,
         status,
         submittedAt,
         internshipId,
@@ -187,6 +194,10 @@ export class ReportsService {
         reviews: true,
       },
     });
+
+    if (internshipId) {
+      await syncWorkflowState(internshipId);
+    }
 
     return formatReport(created);
   }
@@ -296,11 +307,20 @@ export class ReportsService {
       nextStatus = ReportStatus.DRAFT;
     }
 
+    const totalHoursToSave = typeof input.totalHours === "number"
+      ? input.totalHours
+      : typeof (existing as any).totalHours === "number"
+      ? (existing as any).totalHours
+      : typeof currentMetadata.totalHours === "number"
+      ? currentMetadata.totalHours
+      : 400;
+
     const updated = await prisma.report.update({
       where: { id },
       data: {
         ...(input.title ? { title: input.title } : {}),
         content: JSON.stringify(updatedMetadata),
+        totalHours: totalHoursToSave,
         status: nextStatus,
         submittedAt,
       },
@@ -321,6 +341,10 @@ export class ReportsService {
         },
       },
     });
+
+    if (existing.internshipId) {
+      await syncWorkflowState(existing.internshipId);
+    }
 
     return formatReport(updated);
   }
@@ -344,6 +368,11 @@ export class ReportsService {
     }
 
     await prisma.report.delete({ where: { id } });
+
+    if (existing.internshipId) {
+      await syncWorkflowState(existing.internshipId);
+    }
+
     return { success: true, id };
   }
 }

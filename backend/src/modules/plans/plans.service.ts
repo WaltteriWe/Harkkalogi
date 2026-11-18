@@ -3,6 +3,7 @@ import { PlanStatus } from "../../../generated/prisma/enums.ts";
 import { AppError } from "../../middlewares/error.middleware.ts";
 import type { SavePlanInput } from "./plans.schemas.ts";
 import type { AuthUser } from "../../types/index.ts";
+import { syncWorkflowState } from "../internships/internship-workflow.service.ts";
 
 export function formatPlan(plan: any) {
   if (!plan) return null;
@@ -177,6 +178,10 @@ export class PlansService {
         include: { internship: true, student: true },
       });
 
+      if (updated.internshipId) {
+        await syncWorkflowState(updated.internshipId);
+      }
+
       return formatPlan(updated);
     } else {
       // Find or create internship without an attached plan
@@ -215,6 +220,10 @@ export class PlansService {
         },
         include: { internship: true, student: true },
       });
+
+      if (created.internshipId) {
+        await syncWorkflowState(created.internshipId);
+      }
 
       return formatPlan(created);
     }
