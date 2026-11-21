@@ -81,6 +81,44 @@ describe("draft-registry: flusher lifecycle and execution", () => {
     assert.equal(result.allSaved, false);
     assert.equal(result.failedCount, 1);
   });
+
+  it("supports keyed registration and replaces existing flusher idempotently", async () => {
+    let flusher1Called = false;
+    let flusher2Called = false;
+
+    registerDraftFlusher("plan", async () => {
+      flusher1Called = true;
+      return true;
+    });
+
+    // Re-register under same key "plan"
+    registerDraftFlusher("plan", async () => {
+      flusher2Called = true;
+      return true;
+    });
+
+    const result = await flushAllDrafts();
+    assert.equal(result.allSaved, true);
+    assert.equal(flusher1Called, false, "Older flusher was replaced and should not be called");
+    assert.equal(flusher2Called, true, "Newer flusher should be called");
+  });
+
+  it("safely unregisters only if active flusher matches", async () => {
+    let flusher2Called = false;
+
+    const unregister1 = registerDraftFlusher("plan", async () => true);
+    registerDraftFlusher("plan", async () => {
+      flusher2Called = true;
+      return true;
+    });
+
+    // Unregistering the old flusher shouldn't remove the new flusher
+    unregister1();
+
+    const result = await flushAllDrafts();
+    assert.equal(result.allSaved, true);
+    assert.equal(flusher2Called, true);
+  });
 });
 
 describe("draft-registry: offline detection", () => {

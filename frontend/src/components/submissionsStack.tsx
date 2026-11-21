@@ -13,6 +13,7 @@ export interface SubmissionSubjectItem {
   lockedReason?: string;
   actionHref?: string;
   actionLabel?: string;
+  onAction?: () => void;
 }
 
 export interface AttachedDocumentItem {
@@ -114,6 +115,7 @@ export default function SubmissionsStack({
                   {item.actionHref && (
                     <Link
                       href={item.actionHref}
+                      onClick={item.onAction}
                       className={
                         item.isLocked
                           ? "btn-secondary text-xs py-1 px-2.5"
@@ -181,6 +183,7 @@ export default function SubmissionsStack({
                   {item.actionHref && (
                     <Link
                       href={item.actionHref}
+                      onClick={item.onAction}
                       className={
                         item.isLocked
                           ? "btn-secondary text-xs py-1 px-2.5"
@@ -305,6 +308,7 @@ export default function SubmissionsStack({
                   {item.actionHref && (
                     <Link
                       href={item.actionHref}
+                      onClick={item.onAction}
                       className={
                         item.isLocked
                           ? "btn-secondary text-xs py-1 px-2.5"

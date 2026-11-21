@@ -27,7 +27,6 @@ import {
 } from "@/lib/auth-cookie";
 import { flushAllDrafts } from "@/lib/draft-registry";
 import { purgeHarkkalogiStorage } from "@/lib/storage-helpers";
-import { LogoutWarningModal } from "@/components/LogoutWarningModal";
 
 export { purgeHarkkalogiStorage };
 
@@ -167,7 +166,6 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const [isLogoutWarningOpen, setIsLogoutWarningOpen] = useState(false);
 
   const store = useSyncExternalStore(
     subscribe,
@@ -247,25 +245,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      const flushResult = await flushAllDrafts();
-      if (!flushResult.allSaved) {
-        setIsLogoutWarningOpen(true);
-        return;
+      const result = await flushAllDrafts(800);
+      if (!result.allSaved) {
+        console.warn(
+          "[Auth] Pre-logout flush incomplete, proceeding with logout",
+          { failedCount: result.failedCount }
+        );
       }
-    } catch {
-      setIsLogoutWarningOpen(true);
-      return;
+    } catch (err) {
+      console.warn("[Auth] Pre-logout flush error, proceeding with logout", err);
+    } finally {
+      performLogout();
     }
-    performLogout();
-  }, [performLogout]);
-
-  const handleStayLoggedIn = useCallback(() => {
-    setIsLogoutWarningOpen(false);
-  }, []);
-
-  const handleConfirmLogout = useCallback(() => {
-    setIsLogoutWarningOpen(false);
-    performLogout();
   }, [performLogout]);
 
   const value = {
@@ -280,11 +271,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={value}>
       {children}
-      <LogoutWarningModal
-        isOpen={isLogoutWarningOpen}
-        onStayLoggedIn={handleStayLoggedIn}
-        onConfirmLogout={handleConfirmLogout}
-      />
     </AuthContext.Provider>
   );
 }

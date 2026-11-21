@@ -161,17 +161,18 @@ describe("Global Internship Switching & Synchronization", () => {
       assert.equal(activeInternship.plan.learningGoals[0].text, "Pilviarkkitehtuurit ja mikropalvelut");
     });
 
-    it("isolates plan draft keys in localStorage so periods do not overwrite each other", () => {
-      const user = "eetu.makinen@metropolia.fi";
-      const keyH1 = `harkkalogi_plan_${user.replace(/[^a-zA-Z0-9_-]/g, "_")}_internship-1`;
-      const keyH2 = `harkkalogi_plan_${user.replace(/[^a-zA-Z0-9_-]/g, "_")}_internship-2`;
+    it("isolates plan draft states in memory so periods do not overwrite each other", () => {
+      const planH1 = { ...eetuH1Plan, company: "Reaktor In-Memory" };
+      const planH2 = { ...eetuH2Plan, company: "Futurice In-Memory" };
 
-      mockStorage.setItem(keyH1, JSON.stringify({ company: "Reaktor Draft" }));
-      mockStorage.setItem(keyH2, JSON.stringify({ company: "Futurice Draft" }));
+      const storeByInternship = {
+        "internship-1": planH1,
+        "internship-2": planH2,
+      };
 
-      assert.notEqual(keyH1, keyH2);
-      assert.equal(JSON.parse(mockStorage.getItem(keyH1)!).company, "Reaktor Draft");
-      assert.equal(JSON.parse(mockStorage.getItem(keyH2)!).company, "Futurice Draft");
+      assert.notEqual(storeByInternship["internship-1"].company, storeByInternship["internship-2"].company);
+      assert.equal(storeByInternship["internship-1"].company, "Reaktor In-Memory");
+      assert.equal(storeByInternship["internship-2"].company, "Futurice In-Memory");
     });
   });
 

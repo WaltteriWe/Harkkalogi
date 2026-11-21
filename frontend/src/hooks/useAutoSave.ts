@@ -6,10 +6,25 @@ export type SaveStatus = "saved" | "saving" | "unsaved" | "error";
 
 export interface UseAutoSaveOptions<T> {
   data: T;
-  onSave: (data: T, isBackground?: boolean) => Promise<void>;
+  onSave: (data: T, isBackground?: boolean, isUnmounting?: boolean) => Promise<void>;
   debounceMs?: number;
   enabled?: boolean;
 }
+
+export interface AutoSaveReturn {
+  status: SaveStatus;
+  isDirty: boolean;
+  isSaving: boolean;
+  lastSavedAt: string | null;
+  notifyChange: () => void;
+  flush: (isBackground?: boolean, isUnmounting?: boolean) => Promise<boolean>;
+  saveNow: () => Promise<boolean>;
+  retry: () => Promise<boolean>;
+  setStatus: React.Dispatch<React.SetStateAction<SaveStatus>>;
+  setLastSavedAt: React.Dispatch<React.SetStateAction<string | null>>;
+}
+
+export const RETRY_DELAYS_MS = [500, 1000, 2000];
 
 export function formatCurrentTime(): string {
   const now = new Date();
@@ -21,9 +36,9 @@ export function formatCurrentTime(): string {
 export function useAutoSave<T>({
   data,
   onSave,
-  debounceMs = 1500,
+  debounceMs = 2000,
   enabled = true,
-}: UseAutoSaveOptions<T>) {
+}: UseAutoSaveOptions<T>): AutoSaveReturn {
   const [status, setStatus] = useState<SaveStatus>("saved");
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
 
@@ -39,7 +54,7 @@ export function useAutoSave<T>({
   onSaveRef.current = onSave;
 
   const flush = useCallback(
-    async (isBackground = false): Promise<boolean> => {
+    async (isBackground = false, isUnmounting = false): Promise<boolean> => {
       if (timerRef.current) {
         clearTimeout(timerRef.current);
         timerRef.current = null;
@@ -66,37 +81,77 @@ export function useAutoSave<T>({
       setStatus("saving");
 
       const runSave = async (): Promise<boolean> => {
-        try {
-          await onSaveRef.current(latestDataRef.current, isBackground);
-          if (changeVersionRef.current === versionAtStart) {
-            isDirtyRef.current = false;
-            setStatus("saved");
-            setLastSavedAt(formatCurrentTime());
-            return true;
-          } else {
-            // Newer changes were typed while onSave was in-flight
-            isDirtyRef.current = true;
-            setStatus("unsaved");
-            if (!timerRef.current) {
-              timerRef.current = setTimeout(() => {
-                flush();
-              }, debounceMs);
+        let attempt = 0;
+        while (true) {
+          try {
+            await onSaveRef.current(
+              latestDataRef.current,
+              isBackground,
+              isUnmounting
+            );
+
+            if (changeVersionRef.current === versionAtStart) {
+              isDirtyRef.current = false;
+              setStatus("saved");
+              setLastSavedAt(formatCurrentTime());
+              return true;
+            } else {
+              // Newer changes were typed while onSave was in-flight
+              isDirtyRef.current = true;
+              setStatus("unsaved");
+              if (!timerRef.current) {
+                timerRef.current = setTimeout(() => {
+                  flush();
+                }, debounceMs);
+              }
+              return false;
             }
+          } catch (err) {
+            // If newer changes arrived while failing, stop retrying this old version
+            if (changeVersionRef.current !== versionAtStart) {
+              isDirtyRef.current = true;
+              setStatus("unsaved");
+              if (!timerRef.current) {
+                timerRef.current = setTimeout(() => {
+                  flush();
+                }, debounceMs);
+              }
+              return false;
+            }
+
+            if (attempt < RETRY_DELAYS_MS.length && !isUnmounting) {
+              const delay = RETRY_DELAYS_MS[attempt];
+              attempt++;
+              await new Promise((resolve) => setTimeout(resolve, delay));
+              if (changeVersionRef.current !== versionAtStart) {
+                isDirtyRef.current = true;
+                setStatus("unsaved");
+                if (!timerRef.current) {
+                  timerRef.current = setTimeout(() => {
+                    flush();
+                  }, debounceMs);
+                }
+                return false;
+              }
+              continue;
+            }
+
+            // Exhausted retries or unmounting
+            setStatus("error");
+            console.error("Auto-save draft failed after retries:", err);
             return false;
           }
-        } catch (err) {
-          setStatus("error");
-          console.error("Auto-save draft failed:", err);
-          return false;
-        } finally {
-          isSavingRef.current = false;
-          savePromiseRef.current = null;
         }
       };
 
-      const p = runSave();
-      savePromiseRef.current = p;
-      return await p;
+      try {
+        const p = runSave();
+        savePromiseRef.current = p;
+        return await p;
+      } finally {
+        isSavingRef.current = false;
+        savePromiseRef.current = null;
+      }
     },
     [enabled, debounceMs]
   );
@@ -114,6 +169,23 @@ export function useAutoSave<T>({
       flush();
     }, debounceMs);
   }, [debounceMs, flush, enabled]);
+
+  const saveNow = useCallback(async (): Promise<boolean> => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    return await flush(false, false);
+  }, [flush]);
+
+  const retry = useCallback(async (): Promise<boolean> => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    setStatus("unsaved");
+    return await flush(false, false);
+  }, [flush]);
 
   // 1. Browser/Window close guard (beforeunload)
   useEffect(() => {
@@ -136,7 +208,7 @@ export function useAutoSave<T>({
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden" && isDirtyRef.current) {
-        flush(true);
+        flush(true, false);
       }
     };
 
@@ -152,7 +224,7 @@ export function useAutoSave<T>({
         clearTimeout(timerRef.current);
       }
       if (isDirtyRef.current) {
-        flush(true);
+        flush(true, true);
       }
     };
   }, [flush]);
@@ -164,7 +236,9 @@ export function useAutoSave<T>({
     setLastSavedAt,
     notifyChange,
     flush,
+    saveNow,
+    retry,
     isDirty: isDirtyRef.current,
+    isSaving: isSavingRef.current || status === "saving",
   };
 }
-

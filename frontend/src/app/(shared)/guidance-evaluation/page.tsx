@@ -298,7 +298,7 @@ function GuidanceEvaluationContent() {
   // Register flusher for pre-logout draft sync / persistence
   useEffect(() => {
     if (isEffectivelyReadOnly) return;
-    return registerDraftFlusher(async (): Promise<boolean> => {
+    return registerDraftFlusher("guidance-evaluation", async (): Promise<boolean> => {
       try {
         await apiFetch(`/internships/${internshipId}/guidance-evaluation`, {
           method: "POST",

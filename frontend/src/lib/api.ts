@@ -16,14 +16,23 @@ export class ApiError extends Error {
   }
 }
 
+export interface ApiFetchOptions extends RequestInit {
+  isUnmounting?: boolean;
+}
+
 export async function apiFetch<T = unknown>(
   path: string,
-  options: RequestInit = {}
+  options: ApiFetchOptions = {}
 ): Promise<T> {
-  const url = path.startsWith("http") ? path : `${API_BASE}${path}`;
-  const headers = new Headers(options.headers || {});
+  const { isUnmounting, ...fetchOptions } = options;
+  if (isUnmounting) {
+    fetchOptions.keepalive = true;
+  }
 
-  if (!headers.has("Content-Type") && !(options.body instanceof FormData)) {
+  const url = path.startsWith("http") ? path : `${API_BASE}${path}`;
+  const headers = new Headers(fetchOptions.headers || {});
+
+  if (!headers.has("Content-Type") && !(fetchOptions.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -35,7 +44,7 @@ export async function apiFetch<T = unknown>(
   }
 
   const response = await fetch(url, {
-    ...options,
+    ...fetchOptions,
     headers,
   });
 
@@ -61,4 +70,3 @@ export async function apiFetch<T = unknown>(
 
   return data as T;
 }
-

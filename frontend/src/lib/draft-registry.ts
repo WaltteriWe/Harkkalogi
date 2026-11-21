@@ -11,16 +11,28 @@ export interface FlushResult {
 
 export type DraftFlusher = () => Promise<boolean>;
 
-const flushers = new Set<DraftFlusher>();
+let autoIdCounter = 0;
+const flushers = new Map<string, DraftFlusher>();
 
 /**
- * Register an async flusher function.
+ * Register an async flusher function under an idempotent string identifier.
+ * Also supports the legacy single-argument signature for backward compatibility.
  * Returns an unregister function to call on component/hook unmount.
  */
-export function registerDraftFlusher(flusher: DraftFlusher): () => void {
-  flushers.add(flusher);
+export function registerDraftFlusher(id: string, flusher: DraftFlusher): () => void;
+export function registerDraftFlusher(flusher: DraftFlusher): () => void;
+export function registerDraftFlusher(
+  idOrFlusher: string | DraftFlusher,
+  maybeFlusher?: DraftFlusher
+): () => void {
+  const id = typeof idOrFlusher === "string" ? idOrFlusher : `flusher-${++autoIdCounter}`;
+  const flusher = typeof idOrFlusher === "function" ? idOrFlusher : maybeFlusher!;
+
+  flushers.set(id, flusher);
   return () => {
-    flushers.delete(flusher);
+    if (flushers.get(id) === flusher) {
+      flushers.delete(id);
+    }
   };
 }
 
@@ -37,9 +49,10 @@ export function isOnline(): boolean {
 
 /**
  * Invokes all registered flushers concurrently with a timeout safeguard.
+ * Default timeout is 800 ms to prioritize fast logout on shared kiosks.
  * If the user is offline or any flusher fails/times out, returns allSaved: false.
  */
-export async function flushAllDrafts(timeoutMs = 2500): Promise<FlushResult> {
+export async function flushAllDrafts(timeoutMs = 800): Promise<FlushResult> {
   if (!isOnline()) {
     return {
       allSaved: false,
@@ -51,7 +64,7 @@ export async function flushAllDrafts(timeoutMs = 2500): Promise<FlushResult> {
     return { allSaved: true, failedCount: 0 };
   }
 
-  const flusherPromises = Array.from(flushers).map(async (fn) => {
+  const flusherPromises = Array.from(flushers.values()).map(async (fn) => {
     try {
       return await fn();
     } catch {
@@ -83,4 +96,5 @@ export async function flushAllDrafts(timeoutMs = 2500): Promise<FlushResult> {
  */
 export function _resetDraftRegistry(): void {
   flushers.clear();
+  autoIdCounter = 0;
 }
