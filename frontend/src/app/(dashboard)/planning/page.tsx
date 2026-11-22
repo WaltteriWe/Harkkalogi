@@ -396,13 +396,6 @@ export default function PlanningPage() {
             <div className="flex items-center justify-end gap-3">
               <button
                 type="button"
-                onClick={handleSaveDraft}
-                className="btn-secondary"
-              >
-                Save draft
-              </button>
-              <button
-                type="button"
                 onClick={handleSubmit}
                 className="btn-primary"
               >
