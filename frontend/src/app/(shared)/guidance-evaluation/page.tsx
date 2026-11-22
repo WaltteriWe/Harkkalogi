@@ -1,4 +1,4 @@
-p"use client";
+"use client";
 
 import React, { useState, useMemo, useEffect, Suspense } from "react";
 import Link from "next/link";
