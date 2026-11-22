@@ -1,4 +1,4 @@
-"use client";
+p"use client";
 
 import React, { useState, useMemo, useEffect, Suspense } from "react";
 import Link from "next/link";
@@ -214,7 +214,7 @@ function GuidanceEvaluationContent() {
       setEvaluationStatus("DRAFT");
       setSubmittedAt(null);
     }
-
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     apiFetch<{ evaluation: any }>(`/internships/${internshipId}/guidance-evaluation`)
       .then((data) => {
         if (!isMounted) return;
@@ -263,7 +263,7 @@ function GuidanceEvaluationContent() {
   }, [internshipId, isTeacher, activeInternship]);
 
   const isSubmitted = evaluationStatus === "SUBMITTED";
-  const isEffectivelyReadOnly = isTeacher || isLocked || isSubmitted;
+  const isEffectivelyReadOnly = isTeacher || isLocked || isSubmitted || isLoading;
 
   const handleRatingChange = (subjectId: string, rating: number) => {
     if (isEffectivelyReadOnly) return;
@@ -348,7 +348,8 @@ function GuidanceEvaluationContent() {
 
     setIsSubmitting(true);
     try {
-      const res = await apiFetch<{ evaluation: any   }>(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const res = await apiFetch<{ evaluation: any}>(
         `/internships/${internshipId}/guidance-evaluation`,
         {
           method: "POST",
@@ -435,6 +436,12 @@ function GuidanceEvaluationContent() {
           badge={isTeacher ? "Teacher view" : "Ready for submission"}
           showDot={true}
         />
+      )}
+
+      {isLoading && (
+        <p className="text-sm text-ink-muted" role="status">
+        Ladataan arviointia...
+        </p>
       )}
 
       {/* Load error banner if any */}
