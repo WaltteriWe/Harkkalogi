@@ -269,7 +269,7 @@ export default function Sidebar({ role, userName }: SidebarProps = {}) {
                 <p className="text-xs uppercase tracking-wider text-ink-inverse-muted">
                   {activeRole}
                 </p>
-                <p className="truncate font-semibold">{activeUserName}</p>
+                <p className="truncate font-semibold text-ink-inverse">{activeUserName}</p>
               </div>
               <button
                 type="button"
