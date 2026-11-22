@@ -64,7 +64,8 @@ const INITIAL_QUEUE_ITEMS: QueueItem[] = [
     credits: 30,
     creditsPutToOma: true,
     status: "approved",
-    feedback: "Approved by Mikko Laine: Learning reflection and hours verified.",
+    feedback:
+      "Approved by Mikko Laine: Learning reflection and hours verified.",
   },
 ];
 
@@ -83,11 +84,13 @@ export default function TeacherReviewQueuePage() {
   const handleApprove = (id: string, studentName: string) => {
     setQueue((prev) =>
       prev.map((item) =>
-        item.id === id ? { ...item, status: "approved", creditsPutToOma } : item
-      )
+        item.id === id
+          ? { ...item, status: "approved", creditsPutToOma }
+          : item,
+      ),
     );
     setActionNotice(
-      `Report approved for ${studentName}.${creditsPutToOma ? " Credits marked put to OMA." : ""}`
+      `Report approved for ${studentName}.${creditsPutToOma ? " Credits marked put to OMA." : ""}`,
     );
     setTimeout(() => setActionNotice(null), 3000);
     setSelectedReport(null);
@@ -101,13 +104,13 @@ export default function TeacherReviewQueuePage() {
           setActionNotice(
             next
               ? `Credits marked put to OMA for ${item.student}.`
-              : `Credits unmarked from OMA for ${item.student}.`
+              : `Credits unmarked from OMA for ${item.student}.`,
           );
           setTimeout(() => setActionNotice(null), 3000);
           return { ...item, creditsPutToOma: next };
         }
         return item;
-      })
+      }),
     );
   };
 
@@ -120,8 +123,8 @@ export default function TeacherReviewQueuePage() {
               status: "changes_requested",
               feedback: feedbackText || "Please expand on project reflections.",
             }
-          : item
-      )
+          : item,
+      ),
     );
     setActionNotice(`Revision requested from ${studentName}.`);
     setTimeout(() => setActionNotice(null), 3000);
@@ -148,9 +151,6 @@ export default function TeacherReviewQueuePage() {
           <h1 className="text-3xl font-bold tracking-tight text-ink">
             Review queue
           </h1>
-          <p className="meta mt-1 text-sm">
-            Supervising teacher · Review pending reports and student progress
-          </p>
         </div>
 
         {actionNotice && (
@@ -161,7 +161,7 @@ export default function TeacherReviewQueuePage() {
       </header>
 
       {/* Stats summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="card p-4">
           <p className="text-xs text-ink-muted">Awaiting your review</p>
           <p className="text-2xl font-bold font-mono text-ink mt-2">
@@ -174,12 +174,6 @@ export default function TeacherReviewQueuePage() {
             {queue.filter((q) => q.status === "changes_requested").length}
           </p>
         </div>
-        <div className="card p-4">
-          <p className="text-xs text-ink-muted">Approved this term</p>
-          <p className="text-2xl font-bold font-mono text-ink mt-2">
-            {queue.filter((q) => q.status === "approved").length}
-          </p>
-        </div>
       </div>
 
       {/* Review Table Card */}
@@ -189,9 +183,6 @@ export default function TeacherReviewQueuePage() {
             <thead>
               <tr>
                 <th className="w-1/4">Student</th>
-                <th className="w-1/4">Report Title</th>
-                <th className="w-1/6">Company</th>
-                <th className="w-20">Hours</th>
                 <th className="w-28">Status</th>
                 <th className="w-32">Credits in OMA</th>
                 <th className="w-28 text-right">Actions</th>
@@ -199,30 +190,16 @@ export default function TeacherReviewQueuePage() {
             </thead>
             <tbody>
               {queue.map((item) => (
-                <tr key={item.id} className="hover:bg-surface-muted/30 transition-colors">
+                <tr
+                  key={item.id}
+                  className="hover:bg-surface-muted/30 transition-colors"
+                >
                   <td>
                     <p className="font-bold text-ink">{item.student}</p>
                     <p className="text-xs text-ink-muted">{item.programme}</p>
                   </td>
 
-                  <td>
-                    <p className="font-semibold text-sm text-ink">{item.title}</p>
-                    <p className="text-xs text-ink-muted">Submitted {item.submittedDate}</p>
-                  </td>
-
-                  <td>
-                    <p className="text-sm text-ink">{item.company}</p>
-                  </td>
-
-                  <td>
-                    <span className="font-mono tabular font-semibold text-sm">
-                      {item.hours} h
-                    </span>
-                  </td>
-
-                  <td>
-                    {getStatusBadge(item.status)}
-                  </td>
+                  <td>{getStatusBadge(item.status)}</td>
 
                   <td>
                     {item.status === "approved" ? (
@@ -233,7 +210,13 @@ export default function TeacherReviewQueuePage() {
                           onChange={() => toggleCreditsPutToOma(item.id)}
                           className="h-3.5 w-3.5 rounded text-brand cursor-pointer"
                         />
-                        <span className={item.creditsPutToOma ? "text-success font-semibold" : "text-ink-muted"}>
+                        <span
+                          className={
+                            item.creditsPutToOma
+                              ? "text-success font-semibold"
+                              : "text-ink-muted"
+                          }
+                        >
                           {item.creditsPutToOma ? "OMAssa ✓" : "Ei OMAssa"}
                         </span>
                       </label>
@@ -264,24 +247,32 @@ export default function TeacherReviewQueuePage() {
           <div className="card w-full max-w-lg p-6 shadow-xl animate-fade-in flex flex-col gap-4">
             <div>
               <div className="flex items-center justify-between gap-2">
-                <span className="pill-neutral text-xs">{selectedReport.programme}</span>
-                <span className="font-mono tabular text-xs text-ink-muted">{selectedReport.hours} hours</span>
+                <span className="pill-neutral text-xs">
+                  {selectedReport.programme}
+                </span>
               </div>
               <h2 className="text-lg font-bold text-ink mt-2">
                 {selectedReport.title}
               </h2>
               <p className="text-sm text-ink-muted">
-                Student: <span className="font-semibold text-ink">{selectedReport.student}</span> · {selectedReport.company}
+                Student:{" "}
+                <span className="font-semibold text-ink">
+                  {selectedReport.student}
+                </span>
               </p>
             </div>
 
             <div className="bg-surface-muted p-4 rounded-control text-xs text-ink leading-relaxed border border-border">
               <p className="font-semibold mb-1 text-ink">Report Excerpt:</p>
-              &quot;Completed full 800 hours working on web interface components, automated tests, and design tokens. Actively participated in agile sprint planning and code reviews.&quot;
+              &quot;Completed full 800 hours working on web interface
+              components, automated tests, and design tokens. Actively
+              participated in agile sprint planning and code reviews.&quot;
             </div>
 
             <div>
-              <label htmlFor="feedback-comment" className="field-label">Teacher Assessment / Feedback</label>
+              <label htmlFor="feedback-comment" className="field-label">
+                Teacher Assessment / Feedback
+              </label>
               <textarea
                 id="feedback-comment"
                 rows={3}
@@ -303,10 +294,14 @@ export default function TeacherReviewQueuePage() {
               />
               <div className="flex flex-col">
                 <span className="text-xs font-semibold text-ink">
-                  Credits put to OMA ({selectedReport.credits || (selectedReport.hours >= 800 ? 30 : 15)} op)
+                  Credits put to OMA (
+                  {selectedReport.credits ||
+                    (selectedReport.hours >= 800 ? 30 : 15)}{" "}
+                  op)
                 </span>
                 <span className="text-[11px] text-ink-muted">
-                  Check this once you have entered the credits into Metropolia OMA / Peppi.
+                  Check this once you have entered the credits into Metropolia
+                  OMA / Peppi.
                 </span>
               </div>
             </label>
@@ -323,14 +318,21 @@ export default function TeacherReviewQueuePage() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => handleRequestChanges(selectedReport.id, selectedReport.student)}
+                  onClick={() =>
+                    handleRequestChanges(
+                      selectedReport.id,
+                      selectedReport.student,
+                    )
+                  }
                   className="text-xs font-semibold text-danger border border-danger/30 hover:bg-danger-soft px-3 py-2 rounded-control transition-colors"
                 >
                   Request changes
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleApprove(selectedReport.id, selectedReport.student)}
+                  onClick={() =>
+                    handleApprove(selectedReport.id, selectedReport.student)
+                  }
                   className="btn-primary text-xs py-2 px-4"
                 >
                   Approve report

@@ -348,7 +348,7 @@ function GuidanceEvaluationContent() {
 
     setIsSubmitting(true);
     try {
-      const res = await apiFetch<{ evaluation: any }>(
+      const res = await apiFetch<{ evaluation: any   }>(
         `/internships/${internshipId}/guidance-evaluation`,
         {
           method: "POST",

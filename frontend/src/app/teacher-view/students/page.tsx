@@ -109,13 +109,18 @@ const SUPERVISED_STUDENTS: SupervisedStudent[] = [
 ];
 
 export default function MyStudentsPage() {
-  const [students, setStudents] = useState<SupervisedStudent[]>(SUPERVISED_STUDENTS);
+  const [students, setStudents] =
+    useState<SupervisedStudent[]>(SUPERVISED_STUDENTS);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterMode, setFilterMode] = useState<"all" | StudyMode | "needs_review">("all");
+  const [filterMode, setFilterMode] = useState<
+    "all" | StudyMode | "needs_review"
+  >("all");
 
   const toggleStudentCreditsPutToOma = (id: string) => {
     setStudents((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, creditsPutToOma: !s.creditsPutToOma } : s))
+      prev.map((s) =>
+        s.id === id ? { ...s, creditsPutToOma: !s.creditsPutToOma } : s,
+      ),
     );
   };
 
@@ -133,9 +138,11 @@ export default function MyStudentsPage() {
       if (!matchesSearch) return false;
 
       // Mode filter
-      if (filterMode === "päivätoteutus") return s.studyMode === "päivätoteutus";
+      if (filterMode === "päivätoteutus")
+        return s.studyMode === "päivätoteutus";
       if (filterMode === "monimuoto") return s.studyMode === "monimuoto";
-      if (filterMode === "needs_review") return s.reportStatus === "needs_review";
+      if (filterMode === "needs_review")
+        return s.reportStatus === "needs_review";
       return true;
     });
   }, [students, searchQuery, filterMode]);
@@ -175,13 +182,13 @@ export default function MyStudentsPage() {
           <h1 className="text-3xl font-bold tracking-tight text-ink">
             My students
           </h1>
-          <p className="text-sm text-ink-muted mt-1">
-            Students assigned to your supervision and their report progress
-          </p>
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="search-students" className="text-xs font-semibold text-ink">
+          <label
+            htmlFor="search-students"
+            className="text-xs font-semibold text-ink"
+          >
             Search students
           </label>
           <input
@@ -217,7 +224,8 @@ export default function MyStudentsPage() {
               : "bg-surface border border-border text-ink hover:bg-surface-muted"
           }`}
         >
-          Päivätoteutus ({students.filter((s) => s.studyMode === "päivätoteutus").length})
+          Päivätoteutus (
+          {students.filter((s) => s.studyMode === "päivätoteutus").length})
         </button>
         <button
           type="button"
@@ -228,7 +236,8 @@ export default function MyStudentsPage() {
               : "bg-surface border border-border text-ink hover:bg-surface-muted"
           }`}
         >
-          Monimuoto ({students.filter((s) => s.studyMode === "monimuoto").length})
+          Monimuoto (
+          {students.filter((s) => s.studyMode === "monimuoto").length})
         </button>
         <button
           type="button"
@@ -239,7 +248,8 @@ export default function MyStudentsPage() {
               : "bg-surface border border-border text-ink hover:bg-surface-muted"
           }`}
         >
-          Needs review ({students.filter((s) => s.reportStatus === "needs_review").length})
+          Needs review (
+          {students.filter((s) => s.reportStatus === "needs_review").length})
         </button>
       </div>
 
@@ -250,8 +260,6 @@ export default function MyStudentsPage() {
             <thead>
               <tr>
                 <th className="w-1/4">Student</th>
-                <th className="w-1/4">Company &amp; Role</th>
-                <th className="w-1/6">Hours Logged</th>
                 <th className="w-28">Status</th>
                 <th className="w-32">Credits in OMA</th>
                 <th className="w-24 text-right">Actions</th>
@@ -260,7 +268,10 @@ export default function MyStudentsPage() {
             <tbody>
               {filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-sm text-ink-muted">
+                  <td
+                    colSpan={6}
+                    className="py-8 text-center text-sm text-ink-muted"
+                  >
                     No students matching the current filter.
                   </td>
                 </tr>
@@ -268,7 +279,9 @@ export default function MyStudentsPage() {
                 filteredStudents.map((student) => {
                   const percent = Math.min(
                     100,
-                    Math.round((student.hoursLogged / student.hoursRequired) * 100)
+                    Math.round(
+                      (student.hoursLogged / student.hoursRequired) * 100,
+                    ),
                   );
                   return (
                     <tr
@@ -290,40 +303,8 @@ export default function MyStudentsPage() {
                         </div>
                       </td>
 
-                      {/* Company & Role */}
-                      <td>
-                        <p className="font-semibold text-sm text-ink">
-                          {student.company}
-                        </p>
-                        <p className="text-xs text-ink-muted">
-                          {student.role}
-                        </p>
-                      </td>
-
-                      {/* Hours Logged & Progress Track */}
-                      <td>
-                        <div className="flex flex-col gap-1.5 max-w-36">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="font-mono tabular font-semibold text-ink">
-                              {student.hoursLogged} / {student.hoursRequired} h
-                            </span>
-                            <span className="text-[11px] text-ink-muted">
-                              {percent}%
-                            </span>
-                          </div>
-                          <div className="progress-track h-1.5">
-                            <div
-                              className="progress-bar"
-                              style={{ width: `${percent}%` }}
-                            />
-                          </div>
-                        </div>
-                      </td>
-
                       {/* Status */}
-                      <td>
-                        {getStatusBadge(student.reportStatus)}
-                      </td>
+                      <td>{getStatusBadge(student.reportStatus)}</td>
 
                       {/* OMA Credit Checkbox */}
                       <td>
@@ -332,7 +313,9 @@ export default function MyStudentsPage() {
                             <input
                               type="checkbox"
                               checked={Boolean(student.creditsPutToOma)}
-                              onChange={() => toggleStudentCreditsPutToOma(student.id)}
+                              onChange={() =>
+                                toggleStudentCreditsPutToOma(student.id)
+                              }
                               className="h-3.5 w-3.5 rounded text-brand cursor-pointer"
                             />
                             <span
@@ -342,7 +325,9 @@ export default function MyStudentsPage() {
                                   : "text-ink-muted"
                               }
                             >
-                              {student.creditsPutToOma ? "OMAssa ✓" : "Ei OMAssa"}
+                              {student.creditsPutToOma
+                                ? "OMAssa ✓"
+                                : "Ei OMAssa"}
                             </span>
                           </label>
                         ) : (
@@ -389,4 +374,3 @@ export default function MyStudentsPage() {
     </div>
   );
 }
-
