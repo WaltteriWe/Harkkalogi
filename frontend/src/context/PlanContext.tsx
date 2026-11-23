@@ -20,6 +20,12 @@ import {
 } from "@/hooks/useAutoSave";
 import { registerDraftFlusher } from "@/lib/draft-registry";
 
+import {
+  calculateDurationWeeks,
+  calculateEstimatedHours,
+  calculateEstimatedCredits,
+} from "@/lib/plan-calculations";
+
 export interface LearningGoal {
   id: string;
   text: string;
@@ -28,13 +34,21 @@ export interface LearningGoal {
 export interface PlanState {
   scope: "h1" | "h2" | "combined";
   company: string;
+  companyAddress: string;
+  companyWebsite: string;
   jobTitle: string;
   supervisorName: string;
+  supervisorPhone: string;
+  supervisorEmail: string;
+  supervisorTitle: string;
   supervisorContact: string;
   startDate: string;
   endDate: string;
+  workloadType: "FULL_TIME" | "PART_TIME";
   plannedHours: number | string;
   hoursPerWeek: number | string;
+  isInternational: boolean;
+  isPaid: boolean;
   jobDescription: string;
   learningGoals: LearningGoal[];
   assessment: string;
@@ -51,13 +65,21 @@ export const MIN_LEARNING_GOALS = 3;
 export const EMPTY_PLAN: PlanState = {
   scope: "h1",
   company: "",
+  companyAddress: "",
+  companyWebsite: "",
   jobTitle: "",
   supervisorName: "",
+  supervisorPhone: "",
+  supervisorEmail: "",
+  supervisorTitle: "",
   supervisorContact: "",
   startDate: "",
   endDate: "",
+  workloadType: "FULL_TIME",
   plannedHours: 400,
-  hoursPerWeek: "",
+  hoursPerWeek: 37.5,
+  isInternational: false,
+  isPaid: true,
   jobDescription: "",
   learningGoals: [],
   assessment: "",
@@ -74,13 +96,21 @@ export function toPlanPayload(p: PlanState, status: "DRAFT" | "SUBMITTED") {
   return {
     scope: p.scope,
     company: p.company,
+    companyAddress: p.companyAddress,
+    companyWebsite: p.companyWebsite,
     jobTitle: p.jobTitle,
     supervisorName: p.supervisorName,
+    supervisorPhone: p.supervisorPhone,
+    supervisorEmail: p.supervisorEmail,
+    supervisorTitle: p.supervisorTitle,
     supervisorContact: p.supervisorContact,
     startDate: p.startDate,
     endDate: p.endDate,
+    workloadType: p.workloadType,
     plannedHours: p.plannedHours,
     hoursPerWeek: p.hoursPerWeek,
+    isInternational: p.isInternational,
+    isPaid: p.isPaid,
     jobDescription: p.jobDescription,
     learningGoals: p.learningGoals,
     assessment: p.assessment,
@@ -103,11 +133,15 @@ export interface PlanContextType {
   lastSavedAt: string | null;
   wordCount: number;
   checklist: {
-    isWorkplaceFilled: boolean;
-    isPeriodFilled: boolean;
+    isEmployerFilled: boolean;
+    isTermsFilled: boolean;
+    isSupervisorFilled: boolean;
     isWordCountMet: boolean;
     hasEnoughGoals: boolean;
+    isCreditTargetMet: boolean;
     canSubmit: boolean;
+    isWorkplaceFilled: boolean;
+    isPeriodFilled: boolean;
   };
 }
 
@@ -199,13 +233,21 @@ export function PlanProvider({ children }: { children: ReactNode }) {
           setPlan({
             scope: activeInternship.scope || "h1",
             company: ip.company || activeInternship.company || "",
+            companyAddress: ip.companyAddress || "",
+            companyWebsite: ip.companyWebsite || "",
             jobTitle: ip.jobTitle || "",
             supervisorName: ip.supervisorName || activeInternship.supervisorName || "",
+            supervisorPhone: ip.supervisorPhone || "",
+            supervisorEmail: ip.supervisorEmail || "",
+            supervisorTitle: ip.supervisorTitle || "",
             supervisorContact: ip.supervisorContact || "",
             startDate: ip.startDate || activeInternship.startDate || "",
             endDate: ip.endDate || activeInternship.endDate || "",
+            workloadType: ip.workloadType || "FULL_TIME",
             plannedHours: ip.plannedHours || activeInternship.targetHours || 400,
-            hoursPerWeek: ip.hoursPerWeek || 37.5,
+            hoursPerWeek: ip.hoursPerWeek !== undefined && ip.hoursPerWeek !== "" ? ip.hoursPerWeek : 37.5,
+            isInternational: Boolean(ip.isInternational),
+            isPaid: ip.isPaid !== false,
             jobDescription: ip.jobDescription || "",
             learningGoals: Array.isArray(ip.learningGoals) ? ip.learningGoals : [],
             assessment: ip.assessment || "",
@@ -337,36 +379,71 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   }, [plan.jobDescription]);
 
   const checklist = useMemo(() => {
-    const isWorkplaceFilled = Boolean(
+    const isEmployerFilled = Boolean(
       plan.company.trim() &&
-        plan.jobTitle.trim() &&
-        plan.supervisorName.trim() &&
-        plan.supervisorContact.trim()
+        plan.companyAddress.trim() &&
+        plan.companyWebsite.trim()
     );
-    const isPeriodFilled = Boolean(
-      plan.startDate && plan.endDate && String(plan.plannedHours).trim()
+
+    const isTermsFilled = Boolean(
+      plan.startDate &&
+        plan.endDate &&
+        (plan.workloadType === "FULL_TIME" ||
+          (Number(plan.hoursPerWeek) >= 1 && Number(plan.hoursPerWeek) <= 60))
     );
+
+    const isSupervisorFilled =
+      plan.isPaid ||
+      Boolean(
+        (plan.supervisorContact && plan.supervisorContact.trim().length > 0) ||
+          (plan.supervisorName.trim() &&
+            plan.supervisorPhone.trim() &&
+            plan.supervisorEmail.trim() &&
+            plan.supervisorTitle.trim())
+      );
+
     const isWordCountMet = wordCount >= MIN_DESCRIPTION_WORDS;
     const hasEnoughGoals =
       plan.learningGoals.filter((g) => g.text.trim()).length >= MIN_LEARNING_GOALS;
+
+    const weeks = calculateDurationWeeks(plan.startDate, plan.endDate);
+    const hours = calculateEstimatedHours(weeks, plan.workloadType, plan.hoursPerWeek);
+    const creditsCalc = calculateEstimatedCredits(hours, plan.scope);
+    const isCreditTargetMet = creditsCalc.isMet;
+
     const canSubmit =
-      isWorkplaceFilled && isPeriodFilled && isWordCountMet && hasEnoughGoals;
+      isEmployerFilled &&
+      isTermsFilled &&
+      isSupervisorFilled &&
+      isWordCountMet &&
+      hasEnoughGoals;
 
     return {
-      isWorkplaceFilled,
-      isPeriodFilled,
+      isEmployerFilled,
+      isTermsFilled,
+      isSupervisorFilled,
       isWordCountMet,
       hasEnoughGoals,
+      isCreditTargetMet,
       canSubmit,
+      isWorkplaceFilled: isEmployerFilled && isSupervisorFilled,
+      isPeriodFilled: isTermsFilled,
     };
   }, [
     plan.company,
-    plan.jobTitle,
-    plan.supervisorName,
-    plan.supervisorContact,
+    plan.companyAddress,
+    plan.companyWebsite,
     plan.startDate,
     plan.endDate,
-    plan.plannedHours,
+    plan.workloadType,
+    plan.hoursPerWeek,
+    plan.isPaid,
+    plan.supervisorContact,
+    plan.supervisorName,
+    plan.supervisorPhone,
+    plan.supervisorEmail,
+    plan.supervisorTitle,
+    plan.scope,
     plan.learningGoals,
     wordCount,
   ]);
@@ -375,10 +452,17 @@ export function PlanProvider({ children }: { children: ReactNode }) {
     success: boolean;
     message?: string;
   }> => {
+    // Drain pending autosave debounce timer and in-flight draft first
+    try {
+      await flush();
+    } catch (e) {
+      console.warn("Autosave flush before submit encountered error:", e);
+    }
+
     if (!checklist.canSubmit) {
       return {
         success: false,
-        message: `Please fill in the workplace and period details, describe the job in at least ${MIN_DESCRIPTION_WORDS} words, and add at least ${MIN_LEARNING_GOALS} learning goals.`,
+        message: `Tarkista puuttuvat tiedot ennen lähettämistä.`,
       };
     }
     const now = new Date();
@@ -397,8 +481,12 @@ export function PlanProvider({ children }: { children: ReactNode }) {
           }),
         });
         await refreshInternships();
-      } catch (err) {
+      } catch (err: any) {
         console.error("Failed to submit plan to backend:", err);
+        return {
+          success: false,
+          message: err.message || "Suunnitelman lähetys epäonnistui.",
+        };
       }
     }
 
@@ -409,7 +497,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       lastSavedAt: time,
     }));
     return { success: true };
-  }, [checklist.canSubmit, isAuthenticated, plan, activeInternship, refreshInternships]);
+  }, [checklist.canSubmit, flush, isAuthenticated, plan, activeInternship, refreshInternships]);
 
   const resetPlan = useCallback(() => {
     setPlan(EMPTY_PLAN);

@@ -122,10 +122,25 @@ function computeOverviewState(activeInternship: {
     nextAction = { title: "Harjoittelu suoritettu", actionLabel: "Tarkastele suoritusta →", actionHref: "/report" };
   }
 
-  const contacts = [
-    { name: activeInternship.supervisorName || "Laura Nieminen", role: activeInternship.supervisorRole || "Workplace supervisor" },
-    { name: activeInternship.teacherName || "Mikko Laine", role: activeInternship.teacherRole || "Supervising teacher" },
-  ];
+  const contacts: Array<{ name: string; role: string; isUnassigned?: boolean }> = [];
+  if (activeInternship.supervisorName && activeInternship.supervisorName.trim()) {
+    contacts.push({
+      name: activeInternship.supervisorName.trim(),
+      role: activeInternship.supervisorRole || "Workplace supervisor",
+    });
+  }
+  if (activeInternship.teacherName && activeInternship.teacherName.trim()) {
+    contacts.push({
+      name: activeInternship.teacherName.trim(),
+      role: activeInternship.teacherRole || "Supervising teacher",
+    });
+  } else {
+    contacts.push({
+      name: "Not assigned",
+      role: activeInternship.teacherRole || "Supervising teacher",
+      isUnassigned: true,
+    });
+  }
 
   return {
     title: activeInternship.title,
@@ -312,5 +327,59 @@ describe("Overview Page: Internship Selector & Progress Timeline Synchronization
     const unstarted = { status: "not_started" as const };
     assert.equal(computeSelectorBadge(unstarted, false).text, "Ei aloitettu");
     assert.equal(computeSelectorBadge(unstarted, true).text, "Aktiivinen");
+  });
+
+  describe("Contacts resolution on overview card", () => {
+    it("renders both supervisor and teacher when both are set", () => {
+      const state = computeOverviewState({
+        ...eetuH1,
+        supervisorName: "Antti Aallokas",
+        teacherName: "Mikko Laine",
+      });
+      assert.equal(state.contacts.length, 2);
+      assert.equal(state.contacts[0].name, "Antti Aallokas");
+      assert.equal(state.contacts[0].role, "Workplace supervisor");
+      assert.equal(state.contacts[1].name, "Mikko Laine");
+      assert.equal(state.contacts[1].role, "Supervising teacher");
+      assert.equal(state.contacts[1].isUnassigned, undefined);
+    });
+
+    it("omits workplace supervisor and shows only teacher when supervisor is not set (e.g. paid internship)", () => {
+      const state = computeOverviewState({
+        ...eetuH1,
+        supervisorName: undefined,
+        teacherName: "Mikko Laine",
+      });
+      assert.equal(state.contacts.length, 1);
+      assert.equal(state.contacts[0].name, "Mikko Laine");
+      assert.equal(state.contacts[0].role, "Supervising teacher");
+      assert.equal(state.contacts[0].isUnassigned, undefined);
+    });
+
+    it("indicates teacher is not assigned when teacher is empty", () => {
+      const state = computeOverviewState({
+        ...eetuH1,
+        supervisorName: undefined,
+        teacherName: undefined,
+      });
+      assert.equal(state.contacts.length, 1);
+      assert.equal(state.contacts[0].name, "Not assigned");
+      assert.equal(state.contacts[0].role, "Supervising teacher");
+      assert.equal(state.contacts[0].isUnassigned, true);
+    });
+
+    it("displays supervisor with unassigned teacher indication if supervisor exists but teacher is missing", () => {
+      const state = computeOverviewState({
+        ...eetuH1,
+        supervisorName: "Kaisa Korhonen",
+        teacherName: undefined,
+      });
+      assert.equal(state.contacts.length, 2);
+      assert.equal(state.contacts[0].name, "Kaisa Korhonen");
+      assert.equal(state.contacts[0].role, "Workplace supervisor");
+      assert.equal(state.contacts[1].name, "Not assigned");
+      assert.equal(state.contacts[1].role, "Supervising teacher");
+      assert.equal(state.contacts[1].isUnassigned, true);
+    });
   });
 });

@@ -16,6 +16,7 @@ import { apiFetch } from "@/lib/api";
 export interface InternshipContact {
   name: string;
   role: string;
+  isUnassigned?: boolean;
 }
 
 export interface InternshipPlanInfo {
@@ -24,16 +25,27 @@ export interface InternshipPlanInfo {
   approvedAt?: string | null;
   teacherFeedback?: string;
   company?: string;
+  companyAddress?: string;
+  companyWebsite?: string;
   jobTitle?: string;
   supervisorName?: string;
+  supervisorPhone?: string;
+  supervisorEmail?: string;
+  supervisorTitle?: string;
   supervisorContact?: string;
   startDate?: string;
   endDate?: string;
+  workloadType?: "FULL_TIME" | "PART_TIME";
   plannedHours?: number | string;
   hoursPerWeek?: number | string;
+  isInternational?: boolean;
+  isPaid?: boolean;
   jobDescription?: string;
   learningGoals?: Array<{ id: string; text: string }>;
   assessment?: string;
+  calculatedWeeks?: number;
+  estimatedHours?: number;
+  estimatedCredits?: number;
 }
 
 export interface InternshipReportInfo {
@@ -252,9 +264,9 @@ export function InternshipProvider({ children }: { children: ReactNode }) {
           isLocked: Boolean(bi.isLocked),
           startDate: bi.startDate ? String(bi.startDate).split("T")[0] : "",
           endDate: bi.endDate ? String(bi.endDate).split("T")[0] : "",
-          supervisorName: bi.plan?.supervisorName || "Laura Nieminen",
+          supervisorName: bi.plan?.supervisorName?.trim() || undefined,
           supervisorRole: "Workplace supervisor",
-          teacherName: bi.teacher?.name || "Mikko Laine",
+          teacherName: bi.teacher?.name?.trim() || undefined,
           teacherRole: "Supervising teacher",
           isPlanApproved,
           isPlanSubmitted,
@@ -504,7 +516,7 @@ export function InternshipProvider({ children }: { children: ReactNode }) {
         isLocked: false,
         startDate: "2026-06-01",
         endDate: "2026-11-30",
-        supervisorName: "Laura Nieminen",
+        supervisorName: undefined,
         supervisorRole: "Workplace supervisor",
         teacherName: "Mikko Laine",
         teacherRole: "Supervising teacher",
@@ -527,7 +539,7 @@ export function InternshipProvider({ children }: { children: ReactNode }) {
         credits: 15,
         status: "not_started",
         isLocked: true,
-        supervisorName: "Laura Nieminen",
+        supervisorName: undefined,
         supervisorRole: "Workplace supervisor",
         teacherName: "Mikko Laine",
         teacherRole: "Supervising teacher",
@@ -611,16 +623,33 @@ export function InternshipProvider({ children }: { children: ReactNode }) {
     if (activeInternship.contacts && activeInternship.contacts.length > 0) {
       return activeInternship.contacts;
     }
-    return [
-      {
-        name: activeInternship.supervisorName || "Laura Nieminen",
+
+    const list: InternshipContact[] = [];
+
+    // 1. Workplace supervisor: only included if actually set
+    if (activeInternship.supervisorName && activeInternship.supervisorName.trim()) {
+      list.push({
+        name: activeInternship.supervisorName.trim(),
         role: activeInternship.supervisorRole || "Workplace supervisor",
-      },
-      {
-        name: activeInternship.teacherName || "Mikko Laine",
+      });
+    }
+
+    // 2. Supervising teacher
+    if (activeInternship.teacherName && activeInternship.teacherName.trim()) {
+      list.push({
+        name: activeInternship.teacherName.trim(),
         role: activeInternship.teacherRole || "Supervising teacher",
-      },
-    ];
+      });
+    } else {
+      // Clear indication when teacher is not assigned
+      list.push({
+        name: "Not assigned",
+        role: activeInternship.teacherRole || "Supervising teacher",
+        isUnassigned: true,
+      });
+    }
+
+    return list;
   }, [activeInternship]);
 
   const setScope = useCallback(

@@ -92,20 +92,22 @@ export async function loginAs(
  */
 export async function getTestUsers(server: TestServer): Promise<{
   aino: TestUserSession;
+  sara: TestUserSession;
   ville: TestUserSession;
   mikko: TestUserSession;
   hanna: TestUserSession;
   admin: TestUserSession;
 }> {
-  const [aino, ville, mikko, hanna, admin] = await Promise.all([
+  const [aino, sara, ville, mikko, hanna, admin] = await Promise.all([
     loginAs(server, TEST_CREDENTIALS.aino.email, TEST_CREDENTIALS.aino.password),
+    loginAs(server, TEST_CREDENTIALS.sara.email, TEST_CREDENTIALS.sara.password),
     loginAs(server, TEST_CREDENTIALS.ville.email, TEST_CREDENTIALS.ville.password),
     loginAs(server, TEST_CREDENTIALS.mikko.email, TEST_CREDENTIALS.mikko.password),
     loginAs(server, TEST_CREDENTIALS.hanna.email, TEST_CREDENTIALS.hanna.password),
     loginAs(server, TEST_CREDENTIALS.admin.email, TEST_CREDENTIALS.admin.password),
   ]);
 
-  return { aino, ville, mikko, hanna, admin };
+  return { aino, sara, ville, mikko, hanna, admin };
 }
 
 export async function cleanupTestArtifacts() {

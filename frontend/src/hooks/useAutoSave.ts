@@ -106,7 +106,19 @@ export function useAutoSave<T>({
               }
               return false;
             }
-          } catch (err) {
+          } catch (err: any) {
+            // If the plan is locked (409 Conflict) or forbidden (403 Forbidden), cancel retries immediately
+            const statusCode = err?.status ?? err?.statusCode;
+            if (statusCode === 409 || statusCode === 403) {
+              if (timerRef.current) {
+                clearTimeout(timerRef.current);
+                timerRef.current = null;
+              }
+              isDirtyRef.current = false;
+              setStatus("saved");
+              return false;
+            }
+
             // If newer changes arrived while failing, stop retrying this old version
             if (changeVersionRef.current !== versionAtStart) {
               isDirtyRef.current = true;

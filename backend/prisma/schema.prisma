@@ -55,6 +55,11 @@ enum PlanStatus {
   NEEDS_CHANGES
 }
 
+enum WorkloadType {
+  FULL_TIME
+  PART_TIME
+}
+
 model User {
   id           Int        @id @default(autoincrement())
   email        String     @unique
@@ -198,31 +203,39 @@ model MessageAttachment {
 }
 
 model Plan {
-  id                Int        @id @default(autoincrement())
-  scope             String     @default("h1")
+  id                Int          @id @default(autoincrement())
+  scope             String       @default("h1")
   company           String
+  companyAddress    String?
+  companyWebsite    String?
   jobTitle          String?
   supervisorName    String?
+  supervisorPhone   String?
+  supervisorEmail   String?
+  supervisorTitle   String?
   supervisorContact String?
   startDate         DateTime?
   endDate           DateTime?
-  plannedHours      Int?       @default(400)
+  workloadType      WorkloadType @default(FULL_TIME)
+  plannedHours      Int?         @default(400)
   hoursPerWeek      Float?
-  jobDescription    String?    @db.Text
+  isInternational   Boolean      @default(false)
+  isPaid            Boolean      @default(true)
+  jobDescription    String?      @db.Text
   learningGoals     Json?
-  assessment        String?    @db.Text
-  status            PlanStatus @default(DRAFT)
+  assessment        String?      @db.Text
+  status            PlanStatus   @default(DRAFT)
   submittedAt       DateTime?
   approvedAt        DateTime?
   teacherFeedback   String?
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
   studentId         Int
-  student           User       @relation("StudentPlans", fields: [studentId], references: [id], onDelete: Cascade)
+  student           User         @relation("StudentPlans", fields: [studentId], references: [id], onDelete: Cascade)
 
-  internshipId      Int?       @unique
-  internship        Internship? @relation(fields: [internshipId], references: [id], onDelete: SetNull)
+  internshipId      Int?         @unique
+  internship        Internship?  @relation(fields: [internshipId], references: [id], onDelete: SetNull)
 
   @@index([studentId])
 }

@@ -92,9 +92,11 @@ export default function Home() {
           <div>
             <p className="label">Contacts</p>
             <ul className="mt-3 flex flex-col gap-3">
-              {contacts.map(({ name, role }) => (
-                <li key={name}>
-                  <p className="font-semibold text-ink">{name}</p>
+              {contacts.map(({ name, role, isUnassigned }) => (
+                <li key={role}>
+                  <p className={`font-semibold ${isUnassigned ? "italic text-muted-foreground" : "text-ink"}`}>
+                    {name}
+                  </p>
                   <p className="meta text-sm">{role}</p>
                 </li>
               ))}
