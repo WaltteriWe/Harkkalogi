@@ -53,6 +53,14 @@ export interface InternshipReportInfo {
   status: "draft" | "submitted" | "approved";
   submittedAt?: string | null;
   approvedAt?: string | null;
+  realizedHours?: number | string;
+  generalSummary?: string;
+  goalReflections?: Array<{
+    goalId: string;
+    goalText: string;
+    reflection: string;
+    status: "ACHIEVED" | "PARTIALLY_ACHIEVED" | "NOT_ACHIEVED";
+  }>;
   totalHours?: number | string;
   tasksAndLearning?: string;
   attachments?: Array<{ id: string; name: string; size?: string; uploadedAt?: string }>;
@@ -305,8 +313,20 @@ export function InternshipProvider({ children }: { children: ReactNode }) {
                     : ((latestReport.status || "draft").toLowerCase() as any),
                 submittedAt: latestReport.submittedAt ? String(latestReport.submittedAt).split("T")[0] : null,
                 approvedAt: latestReport.createdAt ? String(latestReport.createdAt).split("T")[0] : null,
-                totalHours: typeof latestReport.totalHours === "number" ? latestReport.totalHours : targetHours,
-                tasksAndLearning: latestReport.tasksAndLearning || latestReport.content || "",
+                realizedHours:
+                  typeof latestReport.realizedHours === "number"
+                    ? latestReport.realizedHours
+                    : typeof latestReport.totalHours === "number"
+                    ? latestReport.totalHours
+                    : targetHours,
+                generalSummary: latestReport.generalSummary || latestReport.tasksAndLearning || latestReport.content || "",
+                goalReflections: Array.isArray(latestReport.goalReflections) ? latestReport.goalReflections : [],
+                totalHours: typeof latestReport.realizedHours === "number"
+                  ? latestReport.realizedHours
+                  : typeof latestReport.totalHours === "number"
+                  ? latestReport.totalHours
+                  : targetHours,
+                tasksAndLearning: latestReport.generalSummary || latestReport.tasksAndLearning || latestReport.content || "",
                 attachments: Array.isArray(latestReport.attachments) ? latestReport.attachments : [],
                 teacherFeedback: latestReport.reviews?.[0]?.comment || "",
               }

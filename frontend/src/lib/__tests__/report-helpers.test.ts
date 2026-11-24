@@ -40,6 +40,7 @@ describe("report-helpers: createReportState & createAttachment", () => {
     const report = createReportState();
     assert.equal(report.status, "draft");
     assert.equal(report.company, "");
+    assert.equal(report.realizedHours, 400);
     assert.equal(report.totalHours, 400);
     assert.equal(report.startDate, "");
     assert.equal(report.endDate, "");
@@ -51,20 +52,20 @@ describe("report-helpers: createReportState & createAttachment", () => {
     const report = createReportState({
       id: "custom-id",
       company: "Acme Corp",
-      totalHours: 800,
+      realizedHours: 800,
     });
     assert.equal(report.id, "custom-id");
     assert.equal(report.company, "Acme Corp");
-    assert.equal(report.totalHours, 800);
+    assert.equal(report.realizedHours, 800);
   });
 
   it("provides valid EMPTY_STORE and EMPTY_REPORT with empty company and 400 hours", () => {
     assert.ok(EMPTY_STORE.reports.length > 0);
     assert.equal(EMPTY_STORE.reports[0].company, "");
-    assert.equal(EMPTY_STORE.reports[0].totalHours, 400);
+    assert.equal(EMPTY_STORE.reports[0].realizedHours, 400);
     assert.equal(EMPTY_REPORT.id, "report-draft-1");
     assert.equal(EMPTY_REPORT.company, "");
-    assert.equal(EMPTY_REPORT.totalHours, 400);
+    assert.equal(EMPTY_REPORT.realizedHours, 400);
   });
 
   it("creates an attachment with generated id and default status", () => {
@@ -83,14 +84,23 @@ describe("report-helpers: toReportPayload", () => {
       company: "Tech Co",
       startDate: "2026-06-01",
       endDate: "2026-11-30",
-      totalHours: 800,
-      tasksAndLearning: '{"tasksAndLearning": "Real content"}',
+      realizedHours: 800,
+      generalSummary: "Real content",
+      goalReflections: [
+        {
+          goalId: "g1",
+          goalText: "Goal 1",
+          reflection: "Achieved goal",
+          status: "ACHIEVED",
+        },
+      ],
     });
     const payload = toReportPayload(report, "DRAFT");
     assert.equal(payload.title, "My Report");
-    assert.equal(payload.company, "Tech Co");
-    assert.equal(payload.tasksAndLearning, "Real content");
+    assert.equal(payload.realizedHours, 800);
+    assert.equal(payload.generalSummary, "Real content");
     assert.equal(payload.status, "DRAFT");
+    assert.equal(payload.goalReflections.length, 1);
   });
 });
 
@@ -106,8 +116,14 @@ describe("report-helpers: mapBackendReport", () => {
         company: "Remote Lab",
         startDate: "2026-06-01T00:00:00Z",
         endDate: "2026-11-30T00:00:00Z",
+        plan: {
+          company: "Remote Lab",
+          startDate: "2026-06-01T00:00:00Z",
+          endDate: "2026-11-30T00:00:00Z",
+        },
       },
-      content: JSON.stringify({ tasksAndLearning: "Mapped learning" }),
+      generalSummary: "Mapped learning",
+      realizedHours: 400,
     };
 
     const mapped = mapBackendReport(raw);
@@ -120,7 +136,7 @@ describe("report-helpers: mapBackendReport", () => {
     assert.equal(mapped.submittedAt, "1.11.2026");
     assert.equal(mapped.approvedAt, "2.11.2026");
     assert.equal(mapped.teacherFeedback, "Great work!");
-    assert.equal(mapped.tasksAndLearning, "Mapped learning");
+    assert.equal(mapped.generalSummary, "Mapped learning");
   });
 });
 
@@ -130,9 +146,12 @@ describe("report-helpers: calculateReportWordCount", () => {
     assert.equal(calculateReportWordCount("   \n\t  "), 0);
   });
 
-  it("accurately counts words with mixed whitespace", () => {
-    assert.equal(calculateReportWordCount("One two three four five"), 5);
-    assert.equal(calculateReportWordCount("Line 1\nLine 2\t  Line 3"), 6);
+  it("accurately counts words across summary and goal reflections", () => {
+    const goals = [
+      { goalId: "1", goalText: "T1", reflection: "Learned new design patterns", status: "ACHIEVED" as const },
+      { goalId: "2", goalText: "T2", reflection: "Built clean APIs", status: "ACHIEVED" as const },
+    ];
+    assert.equal(calculateReportWordCount("One two three four five", goals), 12);
   });
 });
 
@@ -154,8 +173,11 @@ describe("report-helpers: calculateReportChecklist", () => {
       company: "Nordic Pixel",
       startDate: "2026-06-01",
       endDate: "2026-11-30",
-      totalHours: 800,
+      realizedHours: 400,
       attachments: [{ id: "1", name: "cert.pdf", status: "Uploaded" }],
+      goalReflections: [
+        { goalId: "1", goalText: "T1", reflection: "Reflection text here", status: "ACHIEVED" },
+      ],
     });
     const checklist = calculateReportChecklist(report, 305);
     assert.equal(checklist.isWorkplaceFilled, true);

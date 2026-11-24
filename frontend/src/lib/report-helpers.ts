@@ -6,6 +6,23 @@ export interface Attachment {
   name: string;
   status: "Uploaded" | "Uploading";
   size?: string;
+  fileUrl?: string;
+  mimeType?: string;
+}
+
+export type GoalStatus = "ACHIEVED" | "PARTIALLY_ACHIEVED" | "NOT_ACHIEVED";
+
+export const GOAL_STATUS_LABELS: Record<GoalStatus, string> = {
+  ACHIEVED: "Saavutettu",
+  PARTIALLY_ACHIEVED: "Osittain saavutettu",
+  NOT_ACHIEVED: "Ei saavutettu",
+};
+
+export interface GoalReflection {
+  goalId: string;
+  goalText: string;
+  reflection: string;
+  status: GoalStatus;
 }
 
 export interface ReportState {
@@ -15,16 +32,19 @@ export interface ReportState {
   company: string;
   startDate: string; // yyyy-mm-dd
   endDate: string; // yyyy-mm-dd
-  totalHours: number | string;
-  tasksAndLearning: string;
+  realizedHours: number | string;
+  generalSummary: string;
+  goalReflections: GoalReflection[];
   attachments: Attachment[];
-  supervisorFeedbackRequested: boolean;
   status: "draft" | "submitted" | "approved";
   lastSavedAt: string;
   submittedAt: string | null;
   approvedAt?: string | null;
   createdAt: string;
   teacherFeedback?: string;
+  // Backward compatibility alias
+  totalHours?: number | string;
+  tasksAndLearning?: string;
 }
 
 export interface ReportStoreState {
@@ -36,7 +56,6 @@ export interface ReportChecklist {
   isWorkplaceFilled: boolean;
   hasWorkCertificate: boolean;
   isWordCountMet: boolean;
-  isSupervisorFeedbackRequested: boolean;
   canSubmit: boolean;
 }
 
@@ -62,19 +81,24 @@ export function sanitizeTasksAndLearning(tasks: unknown): string {
 
 /**
  * Factory for creating a full ReportState object with sensible defaults.
- * Defaults totalHours to 400 (standard for Harjoittelu 1, 15 ECTS).
+ * Defaults realizedHours to 400 (standard for Harjoittelu 1, 15 ECTS).
  */
 export function createReportState(overrides: Partial<ReportState> = {}): ReportState {
+  const realizedHours = overrides.realizedHours ?? overrides.totalHours ?? 400;
+  const generalSummary = overrides.generalSummary ?? overrides.tasksAndLearning ?? "";
+
   return {
     id: `report-${Date.now()}`,
     title: "Harjoitteluraportti ja työtodistus",
     company: "",
     startDate: "",
     endDate: "",
-    totalHours: 400,
-    tasksAndLearning: "",
+    realizedHours,
+    totalHours: realizedHours,
+    generalSummary,
+    tasksAndLearning: generalSummary,
+    goalReflections: [],
     attachments: [],
-    supervisorFeedbackRequested: false,
     status: "draft",
     lastSavedAt: "",
     submittedAt: null,
@@ -98,7 +122,7 @@ export function createAttachment(name: string, size?: string): Attachment {
 
 export const EMPTY_REPORT: ReportState = createReportState({
   id: "report-draft-1",
-  totalHours: 400,
+  realizedHours: 400,
 });
 
 export const EMPTY_STORE: ReportStoreState = {
@@ -116,17 +140,22 @@ export function toReportPayload(
   report: ReportState,
   status: "DRAFT" | "SUBMITTED"
 ) {
+  const hours =
+    typeof report.realizedHours === "number"
+      ? report.realizedHours
+      : parseInt(String(report.realizedHours), 10) || 400;
+
   return {
     internshipId: report.internshipId,
     title: report.title,
-    company: report.company,
-    startDate: report.startDate,
-    endDate: report.endDate,
-    totalHours: report.totalHours,
-    tasksAndLearning: sanitizeTasksAndLearning(report.tasksAndLearning),
-    attachments: report.attachments,
-    supervisorFeedbackRequested: report.supervisorFeedbackRequested,
+    realizedHours: hours,
+    generalSummary: report.generalSummary || report.tasksAndLearning || "",
+    goalReflections: report.goalReflections || [],
+    attachments: report.attachments || [],
     status,
+    // Backward compatibility aliases
+    totalHours: hours,
+    tasksAndLearning: report.generalSummary || report.tasksAndLearning || "",
   };
 }
 
@@ -144,11 +173,13 @@ export interface RawBackendReport {
   status?: string;
   startDate?: string;
   endDate?: string;
+  realizedHours?: number | string;
   totalHours?: number | string;
+  generalSummary?: string;
   tasksAndLearning?: string;
   content?: string;
+  goalReflections?: GoalReflection[];
   attachments?: Attachment[];
-  supervisorFeedbackRequested?: boolean;
   submittedAt?: string;
   createdAt?: string;
   reviews?: RawBackendReview[];
@@ -156,6 +187,12 @@ export interface RawBackendReport {
     company?: string;
     startDate?: string;
     endDate?: string;
+    plan?: {
+      company?: string;
+      startDate?: string;
+      endDate?: string;
+      learningGoals?: Array<{ id: string; text: string }>;
+    };
   };
 }
 
@@ -176,41 +213,57 @@ export function mapBackendReport(r: RawBackendReport): ReportState {
   const approvedAt = reviewApproved?.createdAt ? formatDate(reviewApproved.createdAt) : null;
   const teacherFeedback = r.reviews?.[0]?.comment || "";
 
-  let tasks = r.tasksAndLearning;
-  let parsedTotalHours = r.totalHours;
+  let summary = r.generalSummary ?? r.tasksAndLearning;
+  let parsedHours = r.realizedHours ?? r.totalHours;
+  let goals = r.goalReflections;
+
   if (typeof r.content === "string") {
     try {
       const parsed = JSON.parse(r.content);
-      if (tasks === undefined) {
-        tasks = parsed?.tasksAndLearning ?? "";
+      if (summary === undefined) {
+        summary = parsed?.generalSummary ?? parsed?.tasksAndLearning ?? "";
       }
-      if (parsedTotalHours === undefined && parsed?.totalHours !== undefined) {
-        parsedTotalHours = parsed.totalHours;
+      if (parsedHours === undefined && (parsed?.realizedHours !== undefined || parsed?.totalHours !== undefined)) {
+        parsedHours = parsed.realizedHours ?? parsed.totalHours;
+      }
+      if (!goals && Array.isArray(parsed?.goalReflections)) {
+        goals = parsed.goalReflections;
       }
     } catch {
-      if (tasks === undefined) {
-        tasks = r.content;
+      if (summary === undefined) {
+        summary = r.content;
       }
     }
-  } else if (tasks === undefined) {
-    tasks = "";
+  } else if (summary === undefined) {
+    summary = "";
   }
+
+  const company =
+    r.internship?.plan?.company || r.company || r.internship?.company || "";
+  const startDate =
+    r.internship?.plan?.startDate
+      ? r.internship.plan.startDate.split("T")[0]
+      : r.startDate || (r.internship?.startDate ? r.internship.startDate.split("T")[0] : "");
+  const endDate =
+    r.internship?.plan?.endDate
+      ? r.internship.plan.endDate.split("T")[0]
+      : r.endDate || (r.internship?.endDate ? r.internship.endDate.split("T")[0] : "");
+
+  const realizedHours = parsedHours !== undefined ? parsedHours : 400;
 
   return createReportState({
     id: String(r.id),
     internshipId: typeof r.internshipId === "number" ? r.internshipId : undefined,
-    title: r.title || "Report",
-    company: r.company || r.internship?.company || "",
-    startDate:
-      r.startDate ||
-      (r.internship?.startDate ? r.internship.startDate.split("T")[0] : ""),
-    endDate:
-      r.endDate ||
-      (r.internship?.endDate ? r.internship.endDate.split("T")[0] : ""),
-    totalHours: parsedTotalHours !== undefined ? parsedTotalHours : 400,
-    tasksAndLearning: sanitizeTasksAndLearning(tasks),
+    title: r.title || "Harjoitteluraportti ja työtodistus",
+    company,
+    startDate,
+    endDate,
+    realizedHours,
+    totalHours: realizedHours,
+    generalSummary: sanitizeTasksAndLearning(summary),
+    tasksAndLearning: sanitizeTasksAndLearning(summary),
+    goalReflections: Array.isArray(goals) ? goals : [],
     attachments: Array.isArray(r.attachments) ? r.attachments : [],
-    supervisorFeedbackRequested: Boolean(r.supervisorFeedbackRequested),
     status,
     lastSavedAt: formatCurrentTime(),
     submittedAt,
@@ -221,12 +274,19 @@ export function mapBackendReport(r: RawBackendReport): ReportState {
 }
 
 /**
- * Counts words separated by whitespace.
+ * Counts words across text and optional goal reflections.
  */
-export function calculateReportWordCount(text: string): number {
-  const trimmed = text.trim();
-  if (!trimmed) return 0;
-  return trimmed.split(/\s+/).filter(Boolean).length;
+export function calculateReportWordCount(
+  text: string,
+  goalReflections: GoalReflection[] = []
+): number {
+  const summaryWords = text.trim() ? text.trim().split(/\s+/).filter(Boolean).length : 0;
+  const goalWords = goalReflections.reduce((acc, g) => {
+    const gText = (g.reflection || "").trim();
+    return acc + (gText ? gText.split(/\s+/).filter(Boolean).length : 0);
+  }, 0);
+
+  return summaryWords + goalWords;
 }
 
 /**
@@ -240,18 +300,24 @@ export function calculateReportChecklist(
     report.company.trim() &&
       report.startDate &&
       report.endDate &&
-      String(report.totalHours).trim()
+      String(report.realizedHours || report.totalHours).trim()
   );
-  const hasWorkCertificate = report.attachments.length > 0;
-  const isWordCountMet = wordCount >= 300;
-  const isSupervisorFeedbackRequested = report.supervisorFeedbackRequested;
+
+  const hasWorkCertificate = report.attachments.some(
+    (a) => a.status === "Uploaded" || !a.status
+  );
+
+  const allGoalsHaveText =
+    report.goalReflections.length === 0 ||
+    report.goalReflections.every((g) => (g.reflection || "").trim().length > 0);
+
+  const isWordCountMet = wordCount >= 300 && allGoalsHaveText;
   const canSubmit = isWorkplaceFilled && hasWorkCertificate && isWordCountMet;
 
   return {
     isWorkplaceFilled,
     hasWorkCertificate,
     isWordCountMet,
-    isSupervisorFeedbackRequested,
     canSubmit,
   };
 }

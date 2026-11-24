@@ -7,64 +7,47 @@ import { syncWorkflowState } from "../internships/internship-workflow.service.ts
 
 export function formatReport(report: any) {
   if (!report) return null;
-  let metadata: Record<string, any> = {};
-  let isJson = false;
-  try {
-    const parsed = JSON.parse(report.content);
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      metadata = parsed;
-      isJson = true;
-    } else {
-      metadata = { tasksAndLearning: report.content };
-    }
-  } catch {
-    metadata = { tasksAndLearning: report.content };
-  }
 
-  const company = metadata.company || report.internship?.company || "";
-  const startDate =
-    metadata.startDate ||
-    (report.internship?.startDate
-      ? report.internship.startDate.toISOString().split("T")[0]
-      : "");
-  const endDate =
-    metadata.endDate ||
-    (report.internship?.endDate
-      ? report.internship.endDate.toISOString().split("T")[0]
-      : "");
-  const totalHours =
-    typeof report.totalHours === "number"
+  const realizedHours =
+    typeof report.realizedHours === "number"
+      ? report.realizedHours
+      : typeof report.totalHours === "number"
       ? report.totalHours
-      : metadata.totalHours !== undefined
-      ? metadata.totalHours
-      : 800;
-  const attachments = Array.isArray(metadata.attachments) ? metadata.attachments : [];
-  const supervisorFeedbackRequested = Boolean(metadata.supervisorFeedbackRequested);
-  let tasksAndLearning = isJson
-    ? (metadata.tasksAndLearning ?? "")
-    : (report.content || "");
+      : 400;
 
-  if (
-    typeof tasksAndLearning === "string" &&
-    tasksAndLearning.trim().startsWith('{"tasksAndLearning"')
-  ) {
-    try {
-      const unwrap = JSON.parse(tasksAndLearning);
-      tasksAndLearning = unwrap.tasksAndLearning ?? "";
-    } catch {
-      // ignore
-    }
-  }
+  const generalSummary = report.generalSummary ?? "";
+  const goalReflections = Array.isArray(report.goalReflections)
+    ? report.goalReflections
+    : [];
+  const attachments = Array.isArray(report.attachments) ? report.attachments : [];
+
+  const company = report.internship?.plan?.company || report.internship?.company || "";
+  const startDate = report.internship?.plan?.startDate
+    ? report.internship.plan.startDate.toISOString().split("T")[0]
+    : report.internship?.startDate
+    ? report.internship.startDate.toISOString().split("T")[0]
+    : "";
+  const endDate = report.internship?.plan?.endDate
+    ? report.internship.plan.endDate.toISOString().split("T")[0]
+    : report.internship?.endDate
+    ? report.internship.endDate.toISOString().split("T")[0]
+    : "";
+
+  // Projections for backward compatibility with existing tests and views
+  const totalHours = realizedHours;
+  const tasksAndLearning = generalSummary;
 
   return {
     ...report,
     company,
     startDate,
     endDate,
+    realizedHours,
     totalHours,
+    generalSummary,
     tasksAndLearning,
+    goalReflections,
     attachments,
-    supervisorFeedbackRequested,
   };
 }
 
@@ -82,6 +65,7 @@ export class ReportsService {
             company: true,
             startDate: true,
             endDate: true,
+            plan: true,
             student: { select: { id: true, name: true, email: true } },
           },
         },
@@ -102,9 +86,13 @@ export class ReportsService {
       where: { id },
       include: {
         internship: {
-          include: {
+          select: {
+            id: true,
+            company: true,
+            startDate: true,
+            endDate: true,
+            plan: true,
             student: { select: { id: true, name: true, email: true } },
-            teacher: { select: { id: true, name: true, email: true } },
           },
         },
         reviews: {
@@ -115,45 +103,87 @@ export class ReportsService {
       },
     });
 
-    if (!report) return null;
+    if (!report) {
+      return null;
+    }
 
-    if (user.role === "STUDENT" && report.internship.studentId !== user.id) {
+    if (user.role === "STUDENT" && report.internship.student.id !== user.id) {
       throw new AppError("Forbidden: You do not have permission to view this report", 403);
     }
 
     return formatReport(report);
   }
 
+  async getReportsByInternship(internshipId: number, user: AuthUser) {
+    const internship = await prisma.internship.findUnique({
+      where: { id: internshipId },
+      include: {
+        student: { select: { id: true, name: true, email: true } },
+        plan: true,
+      },
+    });
+
+    if (!internship) {
+      return null;
+    }
+
+    if (user.role === "STUDENT" && internship.student.id !== user.id) {
+      throw new AppError("Forbidden: You do not have permission to view these reports", 403);
+    }
+
+    const reports = await prisma.report.findMany({
+      where: { internshipId },
+      include: {
+        internship: {
+          select: {
+            id: true,
+            company: true,
+            startDate: true,
+            endDate: true,
+            plan: true,
+            student: { select: { id: true, name: true, email: true } },
+          },
+        },
+        reviews: {
+          include: {
+            teacher: { select: { id: true, name: true, email: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return reports.map(formatReport);
+  }
+
   async createReport(input: CreateReportInput, user: AuthUser) {
     let internshipId = input.internshipId;
 
     if (!internshipId) {
-      const activeInternship = await prisma.internship.findFirst({
-        where: { studentId: user.id },
-        orderBy: { startDate: "desc" },
+      const active = await prisma.internship.findFirst({
+        where: {
+          studentId: user.id,
+          status: "ONGOING",
+        },
+        orderBy: { id: "desc" },
       });
-
-      if (!activeInternship) {
-        // Fallback: create default internship for this student
-        const newInternship = await prisma.internship.create({
-          data: {
-            company: input.company || "Internship Host",
-            startDate: input.startDate ? new Date(input.startDate) : new Date(),
-            studentId: user.id,
-          },
-        });
-        internshipId = newInternship.id;
-      } else {
-        internshipId = activeInternship.id;
+      if (active) {
+        internshipId = active.id;
       }
-    } else {
-      // If student, verify internship ownership
+    }
+
+    if (!internshipId) {
+      throw new Error("No internship found to associate this report with");
+    }
+
+    if (internshipId) {
       if (user.role === "STUDENT") {
         const internship = await prisma.internship.findUnique({
           where: { id: internshipId },
+          include: { plan: true },
         });
         if (!internship || internship.studentId !== user.id) {
-          throw new Error("You are not authorized to create a report for this internship");
+          throw new AppError("You are not authorized to create a report for this internship", 403);
         }
       }
     }
@@ -162,21 +192,22 @@ export class ReportsService {
     const status = isSubmitted ? ReportStatus.SUBMITTED : ReportStatus.DRAFT;
     const submittedAt = isSubmitted ? new Date() : null;
 
-    const metadata = {
-      tasksAndLearning: input.tasksAndLearning || "",
-      company: input.company || "",
-      startDate: input.startDate || "",
-      endDate: input.endDate || "",
-      totalHours: input.totalHours !== undefined ? input.totalHours : 800,
-      attachments: input.attachments || [],
-      supervisorFeedbackRequested: Boolean(input.supervisorFeedbackRequested),
-    };
+    const realizedHours = input.realizedHours ?? (typeof input.totalHours === "number" ? input.totalHours : 400);
+    const generalSummary = input.generalSummary ?? input.tasksAndLearning ?? "";
+    const goalReflections = input.goalReflections ?? [];
+    const attachments = input.attachments ?? [];
+
+    if (isSubmitted) {
+      this.validateSubmissionInvariants(generalSummary, goalReflections, attachments);
+    }
 
     const created = await prisma.report.create({
       data: {
-        title: input.title,
-        content: JSON.stringify(metadata),
-        totalHours: typeof input.totalHours === "number" ? input.totalHours : 400,
+        title: input.title || "Harjoitteluraportti ja työtodistus",
+        realizedHours,
+        generalSummary,
+        goalReflections,
+        attachments,
         status,
         submittedAt,
         internshipId,
@@ -188,6 +219,7 @@ export class ReportsService {
             company: true,
             startDate: true,
             endDate: true,
+            plan: true,
             student: { select: { id: true, name: true, email: true } },
           },
         },
@@ -205,7 +237,7 @@ export class ReportsService {
   async updateReport(id: number, input: UpdateReportInput, user: AuthUser) {
     const existing = await prisma.report.findUnique({
       where: { id },
-      include: { internship: true },
+      include: { internship: { include: { plan: true } } },
     });
 
     if (!existing) {
@@ -227,78 +259,35 @@ export class ReportsService {
       );
     }
 
-    // Unpack current content
-    let currentMetadata: Record<string, any> = {};
-    let isJson = false;
-    try {
-      const parsed = JSON.parse(existing.content);
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        currentMetadata = parsed;
-        isJson = true;
-      } else {
-        currentMetadata = { tasksAndLearning: existing.content };
-      }
-    } catch {
-      currentMetadata = { tasksAndLearning: existing.content };
-    }
+    const nextGeneralSummary =
+      input.generalSummary !== undefined
+        ? input.generalSummary
+        : input.tasksAndLearning !== undefined
+        ? input.tasksAndLearning
+        : existing.generalSummary;
 
-    let defaultTasks = isJson
-      ? (currentMetadata.tasksAndLearning ?? "")
-      : (existing.content || "");
+    const nextRealizedHours =
+      input.realizedHours !== undefined
+        ? input.realizedHours
+        : typeof input.totalHours === "number"
+        ? input.totalHours
+        : existing.realizedHours;
 
-    if (
-      typeof defaultTasks === "string" &&
-      defaultTasks.trim().startsWith('{"tasksAndLearning"')
-    ) {
-      try {
-        const unwrap = JSON.parse(defaultTasks);
-        defaultTasks = unwrap.tasksAndLearning ?? "";
-      } catch {
-        // ignore
-      }
-    }
+    const nextGoalReflections =
+      input.goalReflections !== undefined ? input.goalReflections : existing.goalReflections;
 
-    let inputTasks =
-      input.tasksAndLearning !== undefined ? input.tasksAndLearning : defaultTasks;
-    if (
-      typeof inputTasks === "string" &&
-      inputTasks.trim().startsWith('{"tasksAndLearning"')
-    ) {
-      try {
-        const unwrap = JSON.parse(inputTasks);
-        inputTasks = unwrap.tasksAndLearning ?? "";
-      } catch {
-        // ignore
-      }
-    }
-
-    // Merge metadata
-    const updatedMetadata = {
-      tasksAndLearning: inputTasks,
-      company: input.company !== undefined ? input.company : currentMetadata.company || "",
-      startDate:
-        input.startDate !== undefined ? input.startDate : currentMetadata.startDate || "",
-      endDate: input.endDate !== undefined ? input.endDate : currentMetadata.endDate || "",
-      totalHours:
-        input.totalHours !== undefined
-          ? input.totalHours
-          : currentMetadata.totalHours !== undefined
-            ? currentMetadata.totalHours
-            : 800,
-      attachments:
-        input.attachments !== undefined
-          ? input.attachments
-          : currentMetadata.attachments || [],
-      supervisorFeedbackRequested:
-        input.supervisorFeedbackRequested !== undefined
-          ? input.supervisorFeedbackRequested
-          : Boolean(currentMetadata.supervisorFeedbackRequested),
-    };
+    const nextAttachments =
+      input.attachments !== undefined ? input.attachments : existing.attachments;
 
     let nextStatus = existing.status;
     let submittedAt = existing.submittedAt;
 
     if (input.status === "SUBMITTED") {
+      this.validateSubmissionInvariants(
+        nextGeneralSummary,
+        Array.isArray(nextGoalReflections) ? nextGoalReflections : [],
+        Array.isArray(nextAttachments) ? nextAttachments : []
+      );
       nextStatus = ReportStatus.SUBMITTED;
       if (!submittedAt) {
         submittedAt = new Date();
@@ -307,20 +296,14 @@ export class ReportsService {
       nextStatus = ReportStatus.DRAFT;
     }
 
-    const totalHoursToSave = typeof input.totalHours === "number"
-      ? input.totalHours
-      : typeof (existing as any).totalHours === "number"
-      ? (existing as any).totalHours
-      : typeof currentMetadata.totalHours === "number"
-      ? currentMetadata.totalHours
-      : 400;
-
     const updated = await prisma.report.update({
       where: { id },
       data: {
         ...(input.title ? { title: input.title } : {}),
-        content: JSON.stringify(updatedMetadata),
-        totalHours: totalHoursToSave,
+        realizedHours: nextRealizedHours,
+        generalSummary: nextGeneralSummary,
+        goalReflections: nextGoalReflections as any,
+        attachments: nextAttachments as any,
         status: nextStatus,
         submittedAt,
       },
@@ -331,6 +314,7 @@ export class ReportsService {
             company: true,
             startDate: true,
             endDate: true,
+            plan: true,
             student: { select: { id: true, name: true, email: true } },
           },
         },
@@ -347,6 +331,30 @@ export class ReportsService {
     }
 
     return formatReport(updated);
+  }
+
+  private validateSubmissionInvariants(
+    generalSummary: string,
+    goalReflections: any[],
+    attachments: any[]
+  ) {
+    const hasUploadedAttachment = attachments.some(
+      (a) => a && (a.status === "Uploaded" || !a.status)
+    );
+    if (!hasUploadedAttachment) {
+      throw new AppError("Liitä vähintään yksi työtodistus tai liite ennen lähettämistä", 400);
+    }
+
+    const summaryWords = (generalSummary || "").trim().split(/\s+/).filter(Boolean).length;
+    const goalWords = goalReflections.reduce((acc, g) => {
+      const text = (g?.reflection || "").trim();
+      return acc + (text ? text.split(/\s+/).filter(Boolean).length : 0);
+    }, 0);
+
+    const totalWords = summaryWords + goalWords;
+    if (totalWords < 300) {
+      throw new AppError(`Pohdinnan pituus on ${totalWords} sanaa (vaaditaan vähintään 300 sanaa)`, 400);
+    }
   }
 
   async deleteReport(id: number, user: AuthUser) {

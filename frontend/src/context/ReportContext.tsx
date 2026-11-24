@@ -21,6 +21,7 @@ import {
 import { registerDraftFlusher } from "@/lib/draft-registry";
 import {
   type Attachment,
+  type GoalReflection,
   type ReportState,
   type ReportStoreState,
   type ReportChecklist,
@@ -45,9 +46,9 @@ export interface ReportContextType {
   deleteReport: (id: string) => Promise<void>;
   updateReport: (patch: Partial<ReportState>) => void;
   updateField: <K extends keyof ReportState>(field: K, value: ReportState[K]) => void;
+  updateGoalReflection: (goalId: string, patch: Partial<GoalReflection>) => void;
   addAttachment: (name: string, size?: string) => void;
   removeAttachment: (id: string) => void;
-  toggleSupervisorFeedback: () => void;
   saveDraft: () => Promise<void>;
   submitReport: () => Promise<{ success: boolean; message?: string }>;
   saveStatus: SaveStatus;
@@ -58,7 +59,7 @@ export interface ReportContextType {
 
 const ReportContext = createContext<ReportContextType | undefined>(undefined);
 
-export type { ReportState };
+export type { ReportState, GoalReflection };
 
 export function ReportProvider({ children }: { children: ReactNode }) {
   const [store, setStore] = useState<ReportStoreState>(EMPTY_STORE);
@@ -113,7 +114,7 @@ export function ReportProvider({ children }: { children: ReactNode }) {
             (lr) =>
               isNaN(Number(lr.id)) &&
               !backendReports.some((br) => br.title === lr.title) &&
-              Boolean(lr.tasksAndLearning || lr.company)
+              Boolean(lr.generalSummary || lr.tasksAndLearning || lr.company)
           );
           const merged = [...backendReports, ...localOnly];
 
@@ -167,6 +168,7 @@ export function ReportProvider({ children }: { children: ReactNode }) {
       }));
       notifyChange();
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 
@@ -291,10 +293,11 @@ export function ReportProvider({ children }: { children: ReactNode }) {
       const rep = activeInternship.report;
       const bid = activeInternship.backendId;
       const actId = activeInternship.id;
+      const planGoals = activeInternship.plan?.learningGoals || [];
 
       setStore((prev) => {
         // 1. Look for report matching this internship in current store
-        const matching = prev.reports.find((r) => {
+        const matchingIndex = prev.reports.findIndex((r) => {
           if (rep?.id && String(r.id) === String(rep.id)) return true;
           if (bid && r.internshipId === bid) return true;
           if (r.id === `report-draft-${actId}` || r.id === `report-${actId}`) return true;
@@ -303,7 +306,29 @@ export function ReportProvider({ children }: { children: ReactNode }) {
           return false;
         });
 
-        if (matching) {
+        if (matchingIndex >= 0) {
+          const matching = prev.reports[matchingIndex];
+          // If matching report has no goalReflections yet, seed them from planGoals
+          let updatedReport = matching;
+          if ((!matching.goalReflections || matching.goalReflections.length === 0) && planGoals.length > 0) {
+            updatedReport = {
+              ...matching,
+              goalReflections: planGoals.map((g) => ({
+                goalId: g.id,
+                goalText: g.text,
+                reflection: "",
+                status: "ACHIEVED",
+              })),
+            };
+            const updatedReports = [...prev.reports];
+            updatedReports[matchingIndex] = updatedReport;
+            return {
+              ...prev,
+              reports: updatedReports,
+              activeReportId: updatedReport.id,
+            };
+          }
+
           return {
             ...prev,
             activeReportId: matching.id,
@@ -312,16 +337,35 @@ export function ReportProvider({ children }: { children: ReactNode }) {
 
         // 2. If rep info exists on activeInternship, add it to store
         if (rep) {
+          const hours = typeof rep.realizedHours === "number"
+            ? rep.realizedHours
+            : typeof rep.totalHours === "number"
+            ? rep.totalHours
+            : activeInternship.targetHours;
+
+          const seededGoals =
+            rep.goalReflections && rep.goalReflections.length > 0
+              ? rep.goalReflections
+              : planGoals.map((g) => ({
+                  goalId: g.id,
+                  goalText: g.text,
+                  reflection: "",
+                  status: "ACHIEVED" as const,
+                }));
+
           const newReport = createReportState({
             id: rep.id || `report-${actId}`,
             internshipId: bid,
             title: rep.status === "approved" || rep.status === "submitted"
-              ? `${activeInternship.title} loppuraportti (${typeof rep.totalHours === "number" ? rep.totalHours : activeInternship.targetHours} h)`
+              ? `${activeInternship.title} loppuraportti (${hours} h)`
               : `${activeInternship.title} loppuraportti`,
             company: activeInternship.company,
             status: rep.status,
-            totalHours: typeof rep.totalHours === "number" ? rep.totalHours : activeInternship.targetHours,
-            tasksAndLearning: rep.tasksAndLearning || "",
+            realizedHours: hours,
+            totalHours: hours,
+            generalSummary: rep.generalSummary || rep.tasksAndLearning || "",
+            tasksAndLearning: rep.generalSummary || rep.tasksAndLearning || "",
+            goalReflections: seededGoals,
             submittedAt: rep.submittedAt || null,
             approvedAt: rep.approvedAt || null,
             attachments: (rep.attachments as any) || [],
@@ -334,13 +378,20 @@ export function ReportProvider({ children }: { children: ReactNode }) {
           };
         }
 
-        // 3. Otherwise generate fresh draft template for this internship in memory (without DB write)
+        // 3. Otherwise generate fresh draft template for this internship in memory
         const freshDraft = createReportState({
           id: `report-draft-${actId}`,
           internshipId: bid,
           title: `${activeInternship.title} loppuraportti`,
           company: activeInternship.company,
+          realizedHours: activeInternship.targetHours,
           totalHours: activeInternship.targetHours,
+          goalReflections: planGoals.map((g) => ({
+            goalId: g.id,
+            goalText: g.text,
+            reflection: "",
+            status: "ACHIEVED" as const,
+          })),
         });
 
         return {
@@ -387,7 +438,7 @@ export function ReportProvider({ children }: { children: ReactNode }) {
     async (title?: string, initialHours?: number | string): Promise<string> => {
       const now = new Date();
       const dateStr = `${now.getDate()}.${now.getMonth() + 1}.${now.getFullYear()}`;
-      const defaultTitle = title?.trim() || "New report";
+      const defaultTitle = title?.trim() || "Harjoitteluraportti ja työtodistus";
       const hoursToUse = initialHours !== undefined ? initialHours : 400;
 
       if (isAuthenticated) {
@@ -396,7 +447,7 @@ export function ReportProvider({ children }: { children: ReactNode }) {
             method: "POST",
             body: JSON.stringify(
               toReportPayload(
-                createReportState({ title: defaultTitle, totalHours: hoursToUse }),
+                createReportState({ title: defaultTitle, realizedHours: hoursToUse }),
                 "DRAFT"
               )
             ),
@@ -417,7 +468,7 @@ export function ReportProvider({ children }: { children: ReactNode }) {
       // Local fallback
       const newReport = createReportState({
         title: defaultTitle,
-        totalHours: hoursToUse,
+        realizedHours: hoursToUse,
         lastSavedAt: formatCurrentTime(),
         createdAt: dateStr,
       });
@@ -472,6 +523,17 @@ export function ReportProvider({ children }: { children: ReactNode }) {
     [updateActiveReport]
   );
 
+  const updateGoalReflection = useCallback(
+    (goalId: string, patch: Partial<GoalReflection>) => {
+      updateActiveReport((r) => ({
+        goalReflections: (r.goalReflections || []).map((g) =>
+          g.goalId === goalId ? { ...g, ...patch } : g
+        ),
+      }));
+    },
+    [updateActiveReport]
+  );
+
   const addAttachment = useCallback(
     (name: string, size?: string) => {
       const newAttachment = createAttachment(name, size);
@@ -491,20 +553,14 @@ export function ReportProvider({ children }: { children: ReactNode }) {
     [updateActiveReport]
   );
 
-  const toggleSupervisorFeedback = useCallback(() => {
-    updateActiveReport((r) => ({
-      supervisorFeedbackRequested: !r.supervisorFeedbackRequested,
-    }));
-  }, [updateActiveReport]);
-
   const saveDraft = useCallback(async () => {
     updateActiveReport({ lastSavedAt: formatCurrentTime() });
     await flush();
   }, [updateActiveReport, flush]);
 
   const wordCount = useMemo(
-    () => calculateReportWordCount(activeReport.tasksAndLearning),
-    [activeReport.tasksAndLearning]
+    () => calculateReportWordCount(activeReport.generalSummary || activeReport.tasksAndLearning || "", activeReport.goalReflections),
+    [activeReport.generalSummary, activeReport.tasksAndLearning, activeReport.goalReflections]
   );
 
   const checklist = useMemo(
@@ -520,7 +576,7 @@ export function ReportProvider({ children }: { children: ReactNode }) {
       return {
         success: false,
         message:
-          "Please ensure workplace details are filled, a certificate is attached, and tasks describe at least 300 words.",
+          "Varmista, että harjoittelupaikan tiedot ovat kunnossa, työtodistus on liitetty ja pohdinta sisältää vähintään 300 sanaa.",
       };
     }
     const now = new Date();
@@ -530,7 +586,8 @@ export function ReportProvider({ children }: { children: ReactNode }) {
     if (isAuthenticated) {
       const res = await persistReport(activeReport, "SUBMITTED");
       if (!res.success) {
-        console.warn("Backend submit failed, continuing with local store submission update.");
+        console.warn("Backend submit failed:", res.message);
+        return { success: false, message: res.message || "Raportin lähetys epäonnistui." };
       }
       await refreshInternships();
     }
@@ -541,7 +598,7 @@ export function ReportProvider({ children }: { children: ReactNode }) {
       lastSavedAt: time,
     });
     return { success: true };
-  }, [checklist.canSubmit, isAuthenticated, activeReport, persistReport, updateActiveReport]);
+  }, [checklist.canSubmit, isAuthenticated, activeReport, persistReport, refreshInternships, updateActiveReport]);
 
   const value = useMemo(
     () => ({
@@ -553,9 +610,9 @@ export function ReportProvider({ children }: { children: ReactNode }) {
       deleteReport,
       updateReport,
       updateField,
+      updateGoalReflection,
       addAttachment,
       removeAttachment,
-      toggleSupervisorFeedback,
       saveDraft,
       submitReport,
       saveStatus,
@@ -572,9 +629,9 @@ export function ReportProvider({ children }: { children: ReactNode }) {
       deleteReport,
       updateReport,
       updateField,
+      updateGoalReflection,
       addAttachment,
       removeAttachment,
-      toggleSupervisorFeedback,
       saveDraft,
       submitReport,
       saveStatus,

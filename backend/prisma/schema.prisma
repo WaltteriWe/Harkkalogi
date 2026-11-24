@@ -119,14 +119,17 @@ model Internship {
 }
 
 model Report {
-  id          Int          @id @default(autoincrement())
-  title       String
-  content     String
-  totalHours  Int          @default(400)
-  status      ReportStatus @default(DRAFT)
-  submittedAt DateTime?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id              Int          @id @default(autoincrement())
+  title           String       @default("Harjoitteluraportti ja työtodistus")
+  realizedHours   Int          @default(400)
+  generalSummary  String       @default("") @db.Text
+  goalReflections Json?
+  attachments     Json?
+  status          ReportStatus @default(DRAFT)
+  submittedAt     DateTime?
+  approvedAt      DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
   internshipId Int
   internship   Internship @relation(fields: [internshipId], references: [id], onDelete: Cascade)

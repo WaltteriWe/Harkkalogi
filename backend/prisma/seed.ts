@@ -289,7 +289,17 @@ async function main() {
     await prisma.report.create({
       data: {
         title: "Ensimmäisen kuukauden väliraportti",
-        content: "Olen tutustunut tiimiin ja perehtynyt Next.js- ja React-teknologioihin. Työtehtävät ovat edenneet tavoitteiden mukaisesti.",
+        realizedHours: 120,
+        generalSummary: "Olen tutustunut tiimiin ja perehtynyt Next.js- ja React-teknologioihin. Työtehtävät ovat edenneet tavoitteiden mukaisesti.",
+        goalReflections: [
+          {
+            goalId: "goal-1",
+            goalText: "Next.js ja TypeScript hallinta",
+            reflection: "Olen oppinut hyödyntämään Next.js App Routeria ja TypeScript-tyypitystä käytännön tiimityössä.",
+            status: "ACHIEVED",
+          },
+        ],
+        attachments: [],
         status: ReportStatus.SUBMITTED,
         submittedAt: new Date(Date.now() - 86400000 * 7),
         internshipId: ainoInternship.id,
@@ -425,13 +435,40 @@ async function main() {
     await prisma.report.create({
       data: {
         title: "Harjoittelun loppuraportti (800 h)",
-        content: JSON.stringify({
-          totalHours: 800,
-          tasksAndLearning:
-            "Koko harjoittelujakso DigiSolutions Finland Oy:ssä on saatu menestyksekkäästi päätökseen. Suoritin vaaditut 800 työtuntia täysipäiväisesti toukokuun ja lokakuun 2026 välisenä aikana. Keskeisiin työtehtäviini kuului asiakasportaalin REST-rajapintojen ja React-käyttöliittymäkomponenttien kehittäminen sekä PostgreSQL-tietokantakyselyiden optimointi. Kaikki harjoittelusuunnitelmassa asetetut oppimistavoitteet saavutettiin kiitettävästi. Työtodistus ja tuntierittely on toimitettu ohjaavalle opettajalle.",
-        }),
+        realizedHours: 800,
+        generalSummary:
+          "Koko harjoittelujakso DigiSolutions Finland Oy:ssä on saatu menestyksekkäästi päätökseen. Suoritin vaaditut 800 työtuntia täysipäiväisesti toukokuun ja lokakuun 2026 välisenä aikana. Keskeisiin työtehtäviini kuului asiakasportaalin REST-rajapintojen ja React-käyttöliittymäkomponenttien kehittäminen sekä PostgreSQL-tietokantakyselyiden optimointi. Kaikki harjoittelusuunnitelmassa asetetut oppimistavoitteet saavutettiin kiitettävästi. Työtodistus ja tuntierittely on toimitettu ohjaavalle opettajalle.",
+        goalReflections: [
+          {
+            goalId: "matias-goal-1",
+            goalText: "Full-stack kehitysosaamisen syventäminen",
+            reflection: "Kehitin tuotantotasoisia REST-rajapintoja ja optimoin PostgreSQL-tietokantakyselyitä.",
+            status: "ACHIEVED",
+          },
+          {
+            goalId: "matias-goal-2",
+            goalText: "Ketterät menetelmät ja tiimityö",
+            reflection: "Osallistuin päivittäisiin scrum-palavereihin ja sprinttisuunnitteluun.",
+            status: "ACHIEVED",
+          },
+          {
+            goalId: "matias-goal-3",
+            goalText: "Koodin laadunvarmistus ja testaus",
+            reflection: "Toteutin kattavat yksikkö- ja integraatiotestit avainpalveluille.",
+            status: "ACHIEVED",
+          },
+        ],
+        attachments: [
+          {
+            id: "att-matias-1",
+            name: "Tyotodistus_DigiSolutions_Matias.pdf",
+            status: "Uploaded",
+            size: "1.4 MB",
+          },
+        ],
         status: ReportStatus.REVIEWED,
         submittedAt: new Date("2026-10-25T14:00:00Z"),
+        approvedAt: new Date("2026-10-28T10:00:00Z"),
         internshipId: matiasInternship.id,
         reviews: {
           create: [
@@ -550,27 +587,36 @@ async function main() {
     await prisma.report.create({
       data: {
         title: "Harjoittelu 1 loppuraportti (400 h)",
-        content: JSON.stringify({
-          company: "Reaktor",
-          startDate: "2025-05-05",
-          endDate: "2025-08-29",
-          totalHours: 400,
-          tasksAndLearning:
-            "Harjoittelu 1 Reaktorilla suoritettiin onnistuneesti toukokuun ja elokuun 2025 välisenä aikana. 400 tunnin tavoite saavutettiin täysimääräisesti. Tehtäviini kuului React Native -mobiilisovelluksen avaintoiminnallisuuksien toteuttaminen, tilanhallinnan refaktorointi ja kattavien automaatiotestien luominen. Opin erittäin paljon ketteristä menetelmistä sekä koodin laatuvaatimuksista ammattimaisessa kehitystiimissä. Työtodistus on liitteenä.",
-          attachments: [
-            {
-              id: "att-eetu-h1-1",
-              name: "Tyotodistus_Reaktor_Eetu_Makinen.pdf",
-              status: "Uploaded",
-              size: "1.1 MB",
-              fileUrl: "/documents/Tyotodistus_Reaktor_Eetu_Makinen.pdf",
-              mimeType: "application/pdf",
-            },
-          ],
-          supervisorFeedbackRequested: true,
-        }),
+        realizedHours: 400,
+        generalSummary:
+          "Harjoittelu 1 Reaktorilla suoritettiin onnistuneesti toukokuun ja elokuun 2025 välisenä aikana. 400 tunnin tavoite saavutettiin täysimääräisesti. Tehtäviini kuului React Native -mobiilisovelluksen avaintoiminnallisuuksien toteuttaminen, tilanhallinnan refaktorointi ja kattavien automaatiotestien luominen. Opin erittäin paljon ketteristä menetelmistä sekä koodin laatuvaatimuksista ammattimaisessa kehitystiimissä. Työtodistus on liitteenä.",
+        goalReflections: [
+          {
+            goalId: "eetu-goal-1",
+            goalText: "Mobiilikehitysosaaminen React Nativella",
+            reflection: "Toteutin mobiilikäyttöliittymät ja tilanhallintaputket onnistuneesti tuotantoon.",
+            status: "ACHIEVED",
+          },
+          {
+            goalId: "eetu-goal-2",
+            goalText: "Automaatiotestaus",
+            reflection: "Kirjoitin Jest- ja Detox-testejä kattamaan kriittiset käyttäjäpolut.",
+            status: "ACHIEVED",
+          },
+        ],
+        attachments: [
+          {
+            id: "att-eetu-h1-1",
+            name: "Tyotodistus_Reaktor_Eetu_Makinen.pdf",
+            status: "Uploaded",
+            size: "1.1 MB",
+            fileUrl: "/documents/Tyotodistus_Reaktor_Eetu_Makinen.pdf",
+            mimeType: "application/pdf",
+          },
+        ],
         status: ReportStatus.REVIEWED,
         submittedAt: new Date("2025-08-28T12:00:00Z"),
+        approvedAt: new Date("2025-08-30T09:00:00Z"),
         internshipId: eetuH1.id,
         reviews: {
           create: [

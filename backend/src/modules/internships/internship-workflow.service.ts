@@ -142,7 +142,7 @@ export function computeInternshipWorkflow(internship: any): ComputedInternshipWo
     const target = internship.requiredHours || (plan?.scope === "combined" ? 800 : 400);
     const hoursDone =
       planApproved &&
-      ((internship.loggedHours || latestReport?.totalHours || 0) >= target ||
+      ((internship.loggedHours || latestReport?.realizedHours || latestReport?.totalHours || 0) >= target ||
         Boolean(internship.endDate && new Date(internship.endDate) <= new Date()));
 
     stage =

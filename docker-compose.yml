@@ -26,7 +26,6 @@ services:
       context: ./backend
       dockerfile: Dockerfile
       target: development
-    pull_policy: build
     image: harkkalogi-backend
     container_name: harkkalogi-backend
     restart: unless-stopped
@@ -49,12 +48,8 @@ services:
       - /app/node_modules
 
   studio:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-      target: development
-    pull_policy: build
     image: harkkalogi-backend
+    pull_policy: never
     container_name: harkkalogi-studio
     restart: unless-stopped
     ports:
@@ -62,6 +57,8 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-myuser}:${POSTGRES_PASSWORD:-mypassword}@postgres:5432/${POSTGRES_DB:-mydb}?schema=public
     depends_on:
+      backend:
+        condition: service_started
       postgres:
         condition: service_healthy
     entrypoint: []
@@ -76,7 +73,6 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       target: development
-    pull_policy: build
     container_name: harkkalogi-frontend
     restart: unless-stopped
     ports:
