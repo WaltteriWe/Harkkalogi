@@ -1,6 +1,10 @@
 import { Request, Response, NextFunction } from "express";
 import { reportsService } from "./reports.service.ts";
-import type { CreateReportInput, UpdateReportInput } from "./reports.schemas.ts";
+import type {
+  CreateReportInput,
+  UpdateReportInput,
+  CreateReviewInput,
+} from "./reports.schemas.ts";
 
 export class ReportsController {
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -8,6 +12,9 @@ export class ReportsController {
       const user = req.user!;
       let studentId = req.query.studentId
         ? parseInt(req.query.studentId as string, 10)
+        : undefined;
+      let teacherId = req.query.teacherId
+        ? parseInt(req.query.teacherId as string, 10)
         : undefined;
 
       if (user.role === "STUDENT") {
@@ -18,10 +25,12 @@ export class ReportsController {
           return;
         }
         studentId = user.id;
+      } else if (user.role === "TEACHER") {
+        teacherId = user.id;
       }
 
       const status = req.query.status as any;
-      const reports = await reportsService.listReports({ studentId, status });
+      const reports = await reportsService.listReports({ studentId, teacherId, status });
       res.status(200).json({ reports });
     } catch (error) {
       next(error);
@@ -80,6 +89,18 @@ export class ReportsController {
         return;
       }
       res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async createReview(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = parseInt(String(req.params.id), 10);
+      const input = req.body as CreateReviewInput;
+      const user = req.user!;
+      const result = await reportsService.createReview(id, input, user);
+      res.status(201).json(result);
     } catch (error) {
       next(error);
     }

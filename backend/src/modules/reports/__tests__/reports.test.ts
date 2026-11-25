@@ -103,4 +103,103 @@ describe("Reports Endpoints (/api/reports) [E2E HTTP Flow]", () => {
       assert.equal(res.body.error, "Report not found");
     });
   });
+
+  describe("POST /api/reports/:id/reviews & teacher scoping", () => {
+    let tempReportId: number;
+    let ainoInternshipId: number;
+
+    before(async () => {
+      const ainoInternship = await prisma.internship.findFirst({
+        where: { studentId: testUsers.aino.id },
+      });
+      if (!ainoInternship) {
+        throw new Error("Aino internship missing");
+      }
+      ainoInternshipId = ainoInternship.id;
+      const created = await prisma.report.create({
+        data: {
+          internshipId: ainoInternshipId,
+          title: "Test Reviewable Report",
+          status: "SUBMITTED",
+          submittedAt: new Date(),
+        },
+      });
+      tempReportId = created.id;
+    });
+
+    after(async () => {
+      if (tempReportId) {
+        await prisma.report.deleteMany({ where: { id: tempReportId } });
+      }
+    });
+
+    it("scopes GET /api/reports to teacher's supervised internships", async () => {
+      const res = await server.request.get("/api/reports", {
+        headers: testUsers.mikko.authHeaders,
+      });
+
+      assert.equal(res.status, 200);
+      assert.ok(Array.isArray(res.body.reports));
+      assert.ok(
+        res.body.reports.every(
+          (r: any) => r.internship.teacherId === testUsers.mikko.id
+        )
+      );
+    });
+
+    it("returns 403 when a student attempts to review a report", async () => {
+      const res = await server.request.post(`/api/reports/${tempReportId}/reviews`, {
+        headers: testUsers.aino.authHeaders,
+        body: { decision: "APPROVED" },
+      });
+
+      assert.equal(res.status, 403);
+    });
+
+    it("returns 400 when requesting changes with an empty comment", async () => {
+      const res = await server.request.post(`/api/reports/${tempReportId}/reviews`, {
+        headers: testUsers.mikko.authHeaders,
+        body: { decision: "NEEDS_CHANGES", comment: "   " },
+      });
+
+      assert.equal(res.status, 400);
+    });
+
+    it("allows teacher to request changes and resets report status to DRAFT", async () => {
+      const res = await server.request.post(`/api/reports/${tempReportId}/reviews`, {
+        headers: testUsers.mikko.authHeaders,
+        body: { decision: "NEEDS_CHANGES", comment: "Add more reflection." },
+      });
+
+      assert.equal(res.status, 201);
+      assert.equal(res.body.review.decision, "NEEDS_CHANGES");
+      assert.equal(res.body.report.status, "DRAFT");
+    });
+
+    it("returns 409 when reviewing a DRAFT report", async () => {
+      const res = await server.request.post(`/api/reports/${tempReportId}/reviews`, {
+        headers: testUsers.mikko.authHeaders,
+        body: { decision: "APPROVED" },
+      });
+
+      assert.equal(res.status, 409);
+    });
+
+    it("allows teacher to approve a submitted report and set creditsPutToOma", async () => {
+      await prisma.report.update({
+        where: { id: tempReportId },
+        data: { status: "SUBMITTED" },
+      });
+
+      const res = await server.request.post(`/api/reports/${tempReportId}/reviews`, {
+        headers: testUsers.mikko.authHeaders,
+        body: { decision: "APPROVED", creditsPutToOma: true },
+      });
+
+      assert.equal(res.status, 201);
+      assert.equal(res.body.review.decision, "APPROVED");
+      assert.equal(res.body.report.status, "REVIEWED");
+      assert.equal(res.body.report.internship.creditsPutToOma, true);
+    });
+  });
 });

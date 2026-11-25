@@ -43,7 +43,6 @@ describe("sidebar-nav: navByRole structure and process alignment", () => {
     assert.deepEqual(navByRole.teacher[0].items, [
       { label: "Review queue", href: "/teacher-view" },
       { label: "My students", href: "/teacher-view/students" },
-      { label: "Guidance evaluation", href: "/guidance-evaluation" },
     ]);
     assert.deepEqual(navByRole.teacher[1].items, [
       { label: "Messages", href: "/messages" },

@@ -65,5 +65,25 @@ export const reportParamSchema = z.object({
   }),
 });
 
+export const createReviewSchema = z.object({
+  params: z.object({
+    id: z.string().regex(/^\d+$/, "Report ID must be numeric").transform(Number),
+  }),
+  body: z
+    .object({
+      decision: z.enum(["APPROVED", "NEEDS_CHANGES"]),
+      comment: z.string().trim().optional().default(""),
+      creditsPutToOma: z.boolean().optional(),
+    })
+    .refine(
+      (data) => data.decision !== "NEEDS_CHANGES" || data.comment.trim().length > 0,
+      {
+        message: "Comment is required when requesting changes",
+        path: ["comment"],
+      }
+    ),
+});
+
 export type CreateReportInput = z.infer<typeof createReportSchema>["body"];
 export type UpdateReportInput = z.infer<typeof updateReportSchema>["body"];
+export type CreateReviewInput = z.infer<typeof createReviewSchema>["body"];

@@ -11,7 +11,12 @@ export class InternshipsService {
       include: {
         student: { select: { id: true, name: true, email: true, studyType: true } },
         teacher: { select: { id: true, name: true, email: true } },
-        reports: { orderBy: { createdAt: "desc" } },
+        reports: {
+          orderBy: { createdAt: "desc" },
+          include: {
+            reviews: { orderBy: { createdAt: "desc" } },
+          },
+        },
         plan: true,
         guidanceEvaluation: true,
       },
@@ -30,7 +35,12 @@ export class InternshipsService {
       include: {
         student: { select: { id: true, name: true, email: true, studyType: true } },
         teacher: { select: { id: true, name: true, email: true } },
-        reports: { orderBy: { createdAt: "desc" } },
+        reports: {
+          orderBy: { createdAt: "desc" },
+          include: {
+            reviews: { orderBy: { createdAt: "desc" } },
+          },
+        },
         plan: true,
         guidanceEvaluation: true,
         messages: true,

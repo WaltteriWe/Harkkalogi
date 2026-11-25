@@ -43,7 +43,6 @@ export const navByRole: Record<Role, NavGroup[]> = {
       items: [
         { label: "Review queue", href: "/teacher-view" },
         { label: "My students", href: "/teacher-view/students" },
-        { label: "Guidance evaluation", href: "/guidance-evaluation" },
       ],
     },
     {

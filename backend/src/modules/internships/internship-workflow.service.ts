@@ -132,10 +132,12 @@ export function computeInternshipWorkflow(internship: any): ComputedInternshipWo
   if (!stage) {
     const planApproved = (plan?.status || "").toUpperCase() === "APPROVED";
     const planSubmitted = planApproved || (plan?.status || "").toUpperCase() === "SUBMITTED";
+    const latestReportStatus = (latestReport?.status || "").toUpperCase();
+    const latestReviewDecision = (latestReport?.reviews?.[0]?.decision || "").toUpperCase();
     const reportApproved =
       planApproved &&
-      (["REVIEWED", "APPROVED"].includes((latestReport?.status || "").toUpperCase()) ||
-        latestReport?.reviews?.some((r: any) => (r.decision || "").toUpperCase() === "APPROVED"));
+      (["REVIEWED", "APPROVED"].includes(latestReportStatus) ||
+        (latestReportStatus !== "DRAFT" && latestReviewDecision === "APPROVED"));
     const reportSubmitted =
       planApproved &&
       (reportApproved || (latestReport?.status || "").toUpperCase() === "SUBMITTED");
@@ -243,7 +245,11 @@ export async function syncWorkflowState(
     where: { id: internshipId },
     include: {
       plan: true,
-      reports: { orderBy: { createdAt: "desc" }, take: 1, include: { reviews: true } },
+      reports: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        include: { reviews: { orderBy: { createdAt: "desc" } } },
+      },
       guidanceEvaluation: true,
     },
   });

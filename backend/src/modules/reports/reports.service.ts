@@ -1,7 +1,11 @@
 import { prisma } from "../../lib/prisma.ts";
-import { ReportStatus } from "../../../generated/prisma/enums.ts";
+import { ReportStatus, ReviewDecision } from "../../../generated/prisma/enums.ts";
 import { AppError } from "../../middlewares/error.middleware.ts";
-import type { CreateReportInput, UpdateReportInput } from "./reports.schemas.ts";
+import type {
+  CreateReportInput,
+  UpdateReportInput,
+  CreateReviewInput,
+} from "./reports.schemas.ts";
 import type { AuthUser } from "../../types/index.ts";
 import { syncWorkflowState } from "../internships/internship-workflow.service.ts";
 
@@ -52,24 +56,39 @@ export function formatReport(report: any) {
 }
 
 export class ReportsService {
-  async listReports(filters: { studentId?: number; status?: any }) {
+  async listReports(filters: { studentId?: number; teacherId?: number; status?: any }) {
+    const internshipWhere =
+      filters.studentId || filters.teacherId
+        ? {
+            ...(filters.studentId ? { studentId: filters.studentId } : {}),
+            ...(filters.teacherId ? { teacherId: filters.teacherId } : {}),
+          }
+        : undefined;
+
     const reports = await prisma.report.findMany({
       where: {
-        ...(filters.studentId ? { internship: { studentId: filters.studentId } } : {}),
+        ...(internshipWhere ? { internship: internshipWhere } : {}),
         ...(filters.status ? { status: filters.status } : {}),
       },
       include: {
         internship: {
           select: {
             id: true,
+            title: true,
+            credits: true,
+            creditsPutToOma: true,
+            requiredHours: true,
+            stage: true,
+            teacherId: true,
             company: true,
             startDate: true,
             endDate: true,
             plan: true,
-            student: { select: { id: true, name: true, email: true } },
+            student: { select: { id: true, name: true, email: true, studyType: true } },
           },
         },
         reviews: {
+          orderBy: { createdAt: "desc" },
           include: {
             teacher: { select: { id: true, name: true, email: true } },
           },
@@ -382,6 +401,87 @@ export class ReportsService {
     }
 
     return { success: true, id };
+  }
+
+  async createReview(reportId: number, input: CreateReviewInput, teacher: AuthUser) {
+    return prisma.$transaction(async (tx) => {
+      const existing = await tx.report.findUnique({
+        where: { id: reportId },
+        include: { internship: true },
+      });
+
+      if (!existing) {
+        throw new AppError("Report not found", 404);
+      }
+
+      if (teacher.role === "TEACHER" && existing.internship.teacherId !== teacher.id) {
+        throw new AppError("Forbidden: You do not have permission to review this report", 403);
+      }
+
+      if (existing.status !== ReportStatus.SUBMITTED) {
+        throw new AppError("Conflict: Only submitted reports can be reviewed", 409);
+      }
+
+      const isApproved = input.decision === "APPROVED";
+
+      const review = await tx.review.create({
+        data: {
+          reportId,
+          teacherId: teacher.id,
+          decision: input.decision as ReviewDecision,
+          comment: input.comment ?? "",
+        },
+        include: {
+          teacher: { select: { id: true, name: true, email: true } },
+        },
+      });
+
+      if (isApproved && input.creditsPutToOma !== undefined) {
+        await tx.internship.update({
+          where: { id: existing.internshipId },
+          data: {
+            creditsPutToOma: input.creditsPutToOma,
+            creditsPutToOmaAt: input.creditsPutToOma ? new Date() : null,
+          },
+        });
+      }
+
+      const updatedReport = await tx.report.update({
+        where: { id: reportId },
+        data: {
+          status: isApproved ? ReportStatus.REVIEWED : ReportStatus.DRAFT,
+          approvedAt: isApproved ? new Date() : null,
+        },
+        include: {
+          internship: {
+            select: {
+              id: true,
+              title: true,
+              credits: true,
+              creditsPutToOma: true,
+              requiredHours: true,
+              stage: true,
+              teacherId: true,
+              company: true,
+              startDate: true,
+              endDate: true,
+              plan: true,
+              student: { select: { id: true, name: true, email: true, studyType: true } },
+            },
+          },
+          reviews: {
+            orderBy: { createdAt: "desc" },
+            include: {
+              teacher: { select: { id: true, name: true, email: true } },
+            },
+          },
+        },
+      });
+
+      await syncWorkflowState(existing.internshipId, tx);
+
+      return { review, report: formatReport(updatedReport) };
+    });
   }
 }
 
