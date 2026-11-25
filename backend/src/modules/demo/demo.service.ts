@@ -32,10 +32,14 @@ export class DemoService {
             order: 1,
             credits: 15,
             requiredHours: 400,
+            loggedHours: 0,
+            stage: "PLAN_DRAFT" as any,
             company: "",
             description: "Harjoittelu 1 (15 op)",
             startDate: new Date("2026-09-01T08:00:00Z"),
             status: "ONGOING" as any,
+            creditsPutToOma: false,
+            creditsPutToOmaAt: null,
             studentId: sara.id,
             teacherId: mikko?.id ?? null,
           },
@@ -48,9 +52,13 @@ export class DemoService {
             order: 1,
             credits: 15,
             requiredHours: 400,
+            loggedHours: 0,
+            stage: "PLAN_DRAFT" as any,
             company: "",
             teacherId: mikko?.id ?? null,
             status: "ONGOING" as any,
+            creditsPutToOma: false,
+            creditsPutToOmaAt: null,
           },
         });
       }
@@ -62,6 +70,16 @@ export class DemoService {
     if (matias) {
       // Reset Matias's guidance evaluation back to clean draft/unsubmitted state
       await (prisma as any).guidanceEvaluation?.deleteMany({ where: { studentId: matias.id } });
+      await prisma.internship.updateMany({
+        where: { studentId: matias.id },
+        data: {
+          stage: "EVALUATION_PENDING" as any,
+          status: "ONGOING" as any,
+          loggedHours: 800,
+          creditsPutToOma: true,
+          creditsPutToOmaAt: new Date("2026-10-28T10:00:00Z"),
+        },
+      });
     }
 
     const eetu = await prisma.user.findUnique({

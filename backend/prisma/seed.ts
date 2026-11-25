@@ -113,11 +113,19 @@ async function main() {
   if (!ainoInternship) {
     ainoInternship = await prisma.internship.create({
       data: {
+        title: "Koko harjoittelu",
+        order: 1,
+        credits: 30,
+        requiredHours: 800,
+        loggedHours: 640,
+        stage: InternshipStage.IN_PROGRESS,
         company: "Nordic Pixel Oy",
         description: "Frontend developer internship focusing on React and Next.js portal development.",
         startDate: new Date("2026-06-01T08:00:00Z"),
         endDate: new Date("2026-11-30T16:00:00Z"),
         status: InternshipStatus.ONGOING,
+        creditsPutToOma: false,
+        creditsPutToOmaAt: null,
         studentId: aino.id,
         teacherId: mikko.id,
       },
@@ -127,6 +135,15 @@ async function main() {
     ainoInternship = await prisma.internship.update({
       where: { id: ainoInternship.id },
       data: {
+        title: "Koko harjoittelu",
+        order: 1,
+        credits: 30,
+        requiredHours: 800,
+        loggedHours: 640,
+        stage: InternshipStage.IN_PROGRESS,
+        status: InternshipStatus.ONGOING,
+        creditsPutToOma: false,
+        creditsPutToOmaAt: null,
         teacherId: mikko.id,
         company: "Nordic Pixel Oy",
       },
@@ -145,11 +162,23 @@ async function main() {
         description: "Full stack trainee internship.",
         startDate: new Date("2026-09-01T08:00:00Z"),
         status: InternshipStatus.ONGOING,
+        stage: InternshipStage.PLAN_DRAFT,
+        loggedHours: 0,
         studentId: ville.id,
         teacherId: null, // Explicitly unassigned!
       },
     });
     console.log(`Seeded unassigned internship for Ville Virtanen (teacherId: null)`);
+  } else {
+    await prisma.internship.update({
+      where: { id: villeInternship.id },
+      data: {
+        teacherId: null,
+        stage: InternshipStage.PLAN_DRAFT,
+        loggedHours: 0,
+        status: InternshipStatus.ONGOING,
+      },
+    });
   }
 
   // Seed fresh Step 1 Internship for Sara Niemi with Mikko Laine as supervising teacher
@@ -172,10 +201,14 @@ async function main() {
           order: 1,
           credits: 15,
           requiredHours: 400,
+          loggedHours: 0,
+          stage: InternshipStage.PLAN_DRAFT,
           company: "",
           description: "Harjoittelu 1 (15 op)",
           startDate: new Date("2026-09-01T08:00:00Z"),
           status: InternshipStatus.ONGOING,
+          creditsPutToOma: false,
+          creditsPutToOmaAt: null,
           studentId: sara.id,
           teacherId: mikko.id,
         },
@@ -189,9 +222,13 @@ async function main() {
           order: 1,
           credits: 15,
           requiredHours: 400,
+          loggedHours: 0,
+          stage: InternshipStage.PLAN_DRAFT,
           company: "",
           teacherId: mikko.id,
           status: InternshipStatus.ONGOING,
+          creditsPutToOma: false,
+          creditsPutToOmaAt: null,
         },
       });
     }
@@ -325,6 +362,7 @@ async function main() {
   if (!existingPlan) {
     await prisma.plan.create({
       data: {
+        scope: "combined",
         company: "Nordic Pixel Oy",
         jobTitle: "Frontend Developer Trainee",
         supervisorName: "Laura Nieminen",
@@ -373,11 +411,15 @@ async function main() {
           order: 1,
           credits: 30,
           requiredHours: 800,
+          loggedHours: 800,
+          stage: InternshipStage.EVALUATION_PENDING,
           company: "DigiSolutions Finland Oy",
           description: "Full stack web development internship focusing on React, TypeScript, and Node.js REST APIs (30 op / 800 h).",
           startDate: new Date("2026-05-04T08:00:00Z"),
           endDate: new Date("2026-10-30T16:00:00Z"),
           status: InternshipStatus.ONGOING,
+          creditsPutToOma: true,
+          creditsPutToOmaAt: new Date("2026-10-28T10:00:00Z"),
           studentId: matias.id,
           teacherId: mikko.id,
         },
@@ -391,12 +433,16 @@ async function main() {
           order: 1,
           credits: 30,
           requiredHours: 800,
+          loggedHours: 800,
+          stage: InternshipStage.EVALUATION_PENDING,
           company: "DigiSolutions Finland Oy",
           description: "Full stack web development internship focusing on React, TypeScript, and Node.js REST APIs (30 op / 800 h).",
           startDate: new Date("2026-05-04T08:00:00Z"),
           endDate: new Date("2026-10-30T16:00:00Z"),
           teacherId: mikko.id,
           status: InternshipStatus.ONGOING,
+          creditsPutToOma: true,
+          creditsPutToOmaAt: new Date("2026-10-28T10:00:00Z"),
         },
       });
     }
@@ -440,21 +486,21 @@ async function main() {
           "Koko harjoittelujakso DigiSolutions Finland Oy:ssä on saatu menestyksekkäästi päätökseen. Suoritin vaaditut 800 työtuntia täysipäiväisesti toukokuun ja lokakuun 2026 välisenä aikana. Keskeisiin työtehtäviini kuului asiakasportaalin REST-rajapintojen ja React-käyttöliittymäkomponenttien kehittäminen sekä PostgreSQL-tietokantakyselyiden optimointi. Kaikki harjoittelusuunnitelmassa asetetut oppimistavoitteet saavutettiin kiitettävästi. Työtodistus ja tuntierittely on toimitettu ohjaavalle opettajalle.",
         goalReflections: [
           {
-            goalId: "matias-goal-1",
-            goalText: "Full-stack kehitysosaamisen syventäminen",
-            reflection: "Kehitin tuotantotasoisia REST-rajapintoja ja optimoin PostgreSQL-tietokantakyselyitä.",
+            goalId: "goal-1",
+            goalText: "Master full-stack TypeScript and REST API development",
+            reflection: "Kehitin tuotantotasoisia REST-rajapintoja ja React-käyttöliittymiä TypeScriptillä.",
             status: "ACHIEVED",
           },
           {
-            goalId: "matias-goal-2",
-            goalText: "Ketterät menetelmät ja tiimityö",
-            reflection: "Osallistuin päivittäisiin scrum-palavereihin ja sprinttisuunnitteluun.",
+            goalId: "goal-2",
+            goalText: "Learn relational database design and PostgreSQL schema migrations",
+            reflection: "Suunnittelin tietokantaskeemoja ja optimoin PostgreSQL-tietokantakyselyitä.",
             status: "ACHIEVED",
           },
           {
-            goalId: "matias-goal-3",
-            goalText: "Koodin laadunvarmistus ja testaus",
-            reflection: "Toteutin kattavat yksikkö- ja integraatiotestit avainpalveluille.",
+            goalId: "goal-3",
+            goalText: "Gain experience with CI/CD pipelines and automated integration testing",
+            reflection: "Toteutin kattavat yksikkö- ja integraatiotestit avainpalveluille osana CI/CD-putkea.",
             status: "ACHIEVED",
           },
         ],

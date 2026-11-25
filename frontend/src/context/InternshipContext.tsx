@@ -312,7 +312,11 @@ export function InternshipProvider({ children }: { children: ReactNode }) {
                     ? "approved"
                     : ((latestReport.status || "draft").toLowerCase() as any),
                 submittedAt: latestReport.submittedAt ? String(latestReport.submittedAt).split("T")[0] : null,
-                approvedAt: latestReport.createdAt ? String(latestReport.createdAt).split("T")[0] : null,
+                approvedAt: latestReport.approvedAt
+                  ? String(latestReport.approvedAt).split("T")[0]
+                  : latestReport.createdAt
+                  ? String(latestReport.createdAt).split("T")[0]
+                  : null,
                 realizedHours:
                   typeof latestReport.realizedHours === "number"
                     ? latestReport.realizedHours
