@@ -895,13 +895,15 @@ export default function PlanningPage() {
               done: checklist.isTermsFilled,
               label: "Harjoittelun ehdot ja aikataulu",
             },
-            {
-              id: "supervisor",
-              done: checklist.isSupervisorFilled,
-              label: plan.isPaid
-                ? "Työpaikkaohjaaja (vapaaehtoinen)"
-                : "Työpaikkaohjaaja (pakollinen palkattomassa)",
-            },
+            ...(!plan.isPaid
+              ? [
+                  {
+                    id: "supervisor",
+                    done: checklist.isSupervisorFilled,
+                    label: "Työpaikkaohjaaja (pakollinen palkattomassa)",
+                  },
+                ]
+              : []),
             {
               id: "word-count",
               done: checklist.isWordCountMet,

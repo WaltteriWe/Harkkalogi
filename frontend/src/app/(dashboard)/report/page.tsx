@@ -420,7 +420,7 @@ function ReportEditor() {
                 ))}
 
                 {!isReadOnly && (
-                  <label className="btn-dashed cursor-pointer">
+                  <label className="btn-dashed relative cursor-pointer">
                     <span>+ Lisää työtodistus tai liite</span>
                     <input
                       type="file"
