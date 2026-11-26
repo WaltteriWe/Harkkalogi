@@ -155,10 +155,7 @@ function GuidanceEvaluationContent() {
   const isLocked = isTeacher ? false : isEvaluationLocked ?? !isActualReportApproved;
 
   // Local state for dynamic checklist items & star evaluations
-  const [selectedCheckboxes, setSelectedCheckboxes] = useState<string[]>([
-    "tavoitteet",
-    "palaute",
-  ]);
+  const [selectedCheckboxes, setSelectedCheckboxes] = useState<string[]>([]);
   const [studentRatings, setStudentRatings] = useState<Record<string, number>>({
     tyopaikkaohjaus: 0,
     tehtavat_vastaavuus: 0,
@@ -203,7 +200,7 @@ function GuidanceEvaluationContent() {
       setEvaluationStatus(st === "SUBMITTED" ? "SUBMITTED" : "DRAFT");
       setSubmittedAt(evalData.submittedAt || null);
     } else {
-      setSelectedCheckboxes(["tavoitteet", "palaute"]);
+      setSelectedCheckboxes([]);
       setStudentRatings({
         tyopaikkaohjaus: 0,
         tehtavat_vastaavuus: 0,
